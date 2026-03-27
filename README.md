@@ -1,4 +1,4 @@
-# ⌨ jshortcuts-jubuntu
+# jshortcuts-jubuntu
 
 > A personal keyboard shortcut manager for Ubuntu — dark GUI popup **and** a colourful CLI tool, both synced to the same file.
 
@@ -9,52 +9,57 @@
 
 ---
 
-**jshortcuts** is a lightweight personal shortcut-reference tool for Ubuntu.  
-It is **not** connected to Ubuntu's system configuration — it's your own editable cheatsheet where you record, browse, and update your keyboard shortcuts and workflow notes.
+**jshortcuts** is a lightweight personal shortcut-reference tool.
+It is **not** connected to Ubuntu's system configuration — it is your own editable cheatsheet where you record, browse, and update keyboard shortcuts and workflow notes.
 
-Both the **GUI window** and the **CLI tool** read and write the same `~/.jshortcuts.json` file so they always show identical data.
-
----
-
-## 📋 Table of Contents
-
-- [Features](#-features)
-- [Requirements](#-requirements)
-- [Installation](#-installation)
-- [Quick Start](#-quick-start)
-- [CLI Usage](#-cli-usage)
-- [GUI Usage](#-gui-usage)
-- [Data File Format](#-data-file-format)
-- [Examples](#-examples)
-- [Uninstall](#-uninstall)
-- [Troubleshooting](#-troubleshooting)
-- [Contributing](#-contributing)
-- [License](#-license)
+Both the **GUI window** and the **CLI tool** share the same `~/.jshortcuts.json` file and always show identical data.
 
 ---
 
-## ✨ Features
+## Table of Contents
+
+- [Features](#features)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [CLI Usage](#cli-usage)
+- [GUI Usage](#gui-usage)
+- [GitHub Sync](#github-sync)
+- [Launch via Ubuntu Custom Shortcut](#launch-via-ubuntu-custom-shortcut)
+- [Data File Format](#data-file-format)
+- [Examples](#examples)
+- [Uninstall](#uninstall)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
+
+## Features
 
 | Feature | CLI | GUI |
 |---|---|---|
-| View all shortcuts | ✅ | ✅ |
-| Filter by category | ✅ | ✅ |
-| Search shortcuts | ✅ | ✅ |
-| Add shortcut | ✅ | ✅ |
-| Edit shortcut | ✅ | ✅ |
-| Delete shortcut | ✅ | ✅ |
-| Color-coded categories | ✅ | ✅ |
-| Notes per shortcut | ✅ | ✅ |
-| Shared data file | ✅ | ✅ |
-| Desktop app launcher | — | ✅ |
+| View all shortcuts | Yes | Yes |
+| Filter by category | Yes | Yes |
+| Search shortcuts | Yes | Yes |
+| Add shortcut | Yes | Yes |
+| Edit shortcut | Yes | Yes |
+| Delete shortcut | Yes | Yes |
+| Color-coded categories | Yes | Yes |
+| Notes per shortcut | Yes | Yes |
+| Open data file in editor | Yes | Yes |
+| Push shortcuts to GitHub | Yes | Yes |
+| CLI commands reference page | -- | Yes |
+| Desktop app launcher | -- | Yes |
+| Ctrl+C closes GUI from terminal | -- | Yes |
 
 ---
 
-## 🛠 Requirements
+## Requirements
 
 - Ubuntu 20.04 or later (also works on Debian-based distros)
 - Python 3.8+
-- `tkinter` (for the GUI only) — usually pre-installed on Ubuntu
+- `tkinter` — for the GUI only, usually pre-installed on Ubuntu
 
 Check whether everything is ready:
 
@@ -63,7 +68,7 @@ python3 --version
 python3 -c "import tkinter; print('tkinter OK')"
 ```
 
-If tkinter is missing, install it:
+If tkinter is missing:
 
 ```bash
 sudo apt install python3-tk
@@ -71,11 +76,11 @@ sudo apt install python3-tk
 
 ---
 
-## 📦 Installation
+## Installation
 
-### Option 1 — Automated (recommended)
+### Option 1 -- Automated (recommended)
 
-One script handles everything. Run these three commands:
+Run these three commands and the installer handles everything:
 
 ```bash
 git clone https://github.com/johnboscocjt/jshortcuts-jubuntu.git
@@ -83,111 +88,131 @@ cd jshortcuts-jubuntu
 bash install.sh
 ```
 
-**The install script automatically:**
-- ✅ Verifies Python 3 is installed
-- ✅ Checks for tkinter (warns if missing, CLI still works)
-- ✅ Copies `jshortcuts` and `jshortcuts-gui.py` to `~/bin/`
-- ✅ Makes both scripts executable
-- ✅ Creates `~/.jshortcuts.json` with 12 example shortcuts (skipped if it already exists)
-- ✅ Adds `~/bin` to `PATH` in your `~/.bashrc` / `~/.zshrc` automatically
-- ✅ Activates `~/bin` in the **current terminal** immediately — no restart needed
-- ✅ Creates a `.desktop` launcher so jshortcuts appears in your Ubuntu app menu
+**The installer does all of this automatically -- no extra steps needed:**
 
-**After the script finishes, jshortcuts is ready to use immediately** in that terminal:
+| Step | What happens |
+|---|---|
+| 1/7 | Checks that Python 3 is installed |
+| 2/7 | Checks that tkinter is available (warns if missing, CLI still works) |
+| 3/7 | Creates `~/bin/` directory |
+| 4/7 | Copies `jshortcuts` and `jshortcuts-gui.py` to `~/bin/` and makes them executable |
+| 5/7 | Creates `~/.jshortcuts.json` with 12 example shortcuts (skipped if it already exists) |
+| 6/7 | Writes `export PATH="$HOME/bin:$PATH"` into `~/.bashrc`, `~/.zshrc`, and `~/.profile` (whichever exist) -- also activates it immediately in the current terminal |
+| 7/7 | Creates a `.desktop` launcher so jshortcuts appears in your Ubuntu app menu |
+
+**After the script finishes, jshortcuts is ready immediately in that same terminal:**
 
 ```bash
-jshortcuts        # try it right now
-jshortcuts gui    # open the GUI
+jshortcuts        # try it now
+jshortcuts gui    # open the GUI window
 ```
 
-New terminal windows will also have jshortcuts available automatically because the script updated your shell config.
+New terminal windows will also have jshortcuts available -- no restart needed.
 
 ---
 
-### Option 2 — Manual (step by step)
+### Option 2 -- Manual (step by step)
 
-Use this if you prefer to see exactly what happens, or if the automated installer fails.
+Use this if you prefer to understand exactly what happens, or if the installer fails.
 
-**Step 1 — Clone the repository**
+**Step 1 -- Clone the repository**
 
 ```bash
 git clone https://github.com/johnboscocjt/jshortcuts-jubuntu.git
 cd jshortcuts-jubuntu
 ```
 
-**Step 2 — Create ~/bin and copy the scripts**
+**Step 2 -- Create the ~/bin directory and copy scripts**
 
 ```bash
 mkdir -p ~/bin
-cp jshortcuts          ~/bin/jshortcuts
-cp jshortcuts-gui.py   ~/bin/jshortcuts-gui.py
+cp jshortcuts               ~/bin/jshortcuts
+cp jshortcuts-gui.py        ~/bin/jshortcuts-gui.py
 cp jshortcuts_default.json  ~/bin/jshortcuts_default.json
 ```
 
-**Step 3 — Make both scripts executable**
+**Step 3 -- Make both scripts executable**
 
 ```bash
 chmod +x ~/bin/jshortcuts
 chmod +x ~/bin/jshortcuts-gui.py
 ```
 
-**Step 4 — Add ~/bin to your PATH** (skip if already present)
+**Step 4 -- Add ~/bin to your PATH**
+
+First check whether it is already there:
 
 ```bash
-# Check if it's already in your PATH:
-echo $PATH | grep -q "$HOME/bin" && echo "Already there" || echo "Not yet added"
+echo $PATH | grep "$HOME/bin" && echo "Already in PATH" || echo "Not in PATH yet"
 ```
 
-If it says "Not yet added":
+If it says "Not in PATH yet", add it:
 
 ```bash
+# For Bash users:
 echo '' >> ~/.bashrc
 echo '# jshortcuts' >> ~/.bashrc
 echo 'export PATH="$HOME/bin:$PATH"' >> ~/.bashrc
+
+# For Zsh users (if you use zsh instead of bash):
+echo '' >> ~/.zshrc
+echo 'export PATH="$HOME/bin:$PATH"' >> ~/.zshrc
 ```
 
-Then activate it in the current terminal:
+Activate it in the current terminal (only needed once -- new terminals pick it up automatically):
 
 ```bash
 source ~/.bashrc
+# or: source ~/.zshrc
 ```
 
-If you use Zsh instead of Bash:
+**Step 5 -- Create your data file**
+
+Only needed if `~/.jshortcuts.json` does not exist yet:
 
 ```bash
-echo '' >> ~/.zshrc
-echo 'export PATH="$HOME/bin:$PATH"' >> ~/.zshrc
-source ~/.zshrc
+[ -f ~/.jshortcuts.json ] || cp jshortcuts_default.json ~/.jshortcuts.json
 ```
 
-**Step 5 — Create your data file**
+**Step 6 -- Create the desktop launcher (optional)**
 
 ```bash
-# Only do this if ~/.jshortcuts.json doesn't already exist:
-cp jshortcuts_default.json ~/.jshortcuts.json
+mkdir -p ~/.local/share/applications
+cat > ~/.local/share/applications/jshortcuts.desktop << 'EOF'
+[Desktop Entry]
+Name=jshortcuts
+Comment=Personal keyboard shortcuts manager
+Exec=python3 /home/YOUR_USERNAME/bin/jshortcuts-gui.py
+Icon=input-keyboard
+Type=Application
+Categories=Utility;
+Terminal=false
+EOF
 ```
 
-**Step 6 — Verify it works**
+Replace `YOUR_USERNAME` with your actual username (run `whoami` to see it).
+
+**Step 7 -- Verify it works**
 
 ```bash
 jshortcuts
 ```
 
-You should see a coloured list of example shortcuts. If you get "command not found", re-run `source ~/.bashrc` in the current terminal.
+You should see a coloured list of example shortcuts. If you get "command not found", run `source ~/.bashrc` and try again.
 
 ---
 
-## ⚡ Quick Start
+## Quick Start
 
 ```bash
-jshortcuts           # view all shortcuts
-jshortcuts add       # add your first custom shortcut
-jshortcuts gui       # open the GUI window
+jshortcuts           # see all shortcuts
+jshortcuts add       # add your first one
+jshortcuts gui       # open the GUI
 ```
 
 ---
 
-## 🖥 CLI Usage
+## CLI Usage
 
 ```
 jshortcuts [command] [argument]
@@ -199,155 +224,268 @@ jshortcuts [command] [argument]
 | `jshortcuts add` | Add a new shortcut (interactive prompts) |
 | `jshortcuts edit <id>` | Edit a shortcut by its ID |
 | `jshortcuts del <id>` | Delete a shortcut by its ID |
-| `jshortcuts cat <name>` | Filter shortcuts by category |
+| `jshortcuts cat <n>` | Filter shortcuts by category |
 | `jshortcuts search <query>` | Search across keys, description, notes |
+| `jshortcuts open` | Open the data file in your default editor |
+| `jshortcuts github` | Push your shortcuts to a GitHub repository |
 | `jshortcuts gui` | Launch the GUI popup window |
 | `jshortcuts help` | Show help message |
 
-### Listing shortcuts
+### List all shortcuts
 
 ```bash
 jshortcuts
 ```
 
 ```
-──────────── ⌨  jshortcuts — My Keyboard Shortcuts ────────────────
+-------- jshortcuts -- My Keyboard Shortcuts --------
 
-  ▸ Navigation
+  > Navigation
 
     [  1]  Super + D                     Show / Hide Desktop
     [  2]  Super + Left / Right          Snap window to half screen
 
-  ▸ Terminal
+  > Terminal
 
     [  4]  Ctrl + Alt + T                Open Terminal
-                                          ↳ Default Ubuntu terminal shortcut
+                                          -> Default Ubuntu terminal shortcut
 
-  ▸ Browser
-
-    [  7]  Ctrl + T                      New Tab
-
-──────────────────────────────────────────────────────────────────
-  7 shortcut(s)  │  data: /home/you/.jshortcuts.json
-  jshortcuts add | edit <id> | del <id> | gui
+-----------------------------------------------------
+  12 shortcut(s)  |  data: /home/you/.jshortcuts.json
+  jshortcuts add | edit <id> | del <id> | open | github | gui
 ```
 
-### Adding a shortcut
+### Add a shortcut
 
 ```bash
 jshortcuts add
 ```
 
 ```
-  ── Add New Shortcut ──────────────────
+  -- Add New Shortcut -------------------
 
-  Existing categories: Navigation, Terminal, Browser
+  Existing categories: Navigation, Terminal, Browser, System
 
   Category (e.g. Terminal, Browser): VS Code
-  Keys (e.g. Ctrl + T): Ctrl + `
-  Description: Toggle integrated terminal
-  Notes (optional): Also works in most editors
+  Keys (e.g. Ctrl + T): Ctrl + P
+  Description: Quick file open
+  Notes (optional): Type filename to jump to it
 
-  ✓ Shortcut #13 added.
+  OK  Shortcut #13 added.
 ```
 
-### Editing a shortcut
+### Edit a shortcut
 
 ```bash
 jshortcuts edit 4
 ```
 
 ```
-  ── Edit Shortcut #4 ─────────────────
-  (Press Enter to keep current value)
+  -- Edit Shortcut #4 ------------------
+  (Press Enter to keep the current value)
 
   Category [Terminal]:
   Keys [Ctrl + Alt + T]:
   Description [Open Terminal]: Open Gnome Terminal
   Notes [Default Ubuntu terminal shortcut]:
 
-  ✓ Shortcut #4 updated.
+  OK  Shortcut #4 updated.
 ```
 
-### Deleting a shortcut
+### Delete a shortcut
 
 ```bash
-jshortcuts del 7
+jshortcuts del 4
 ```
 
 ```
-  Delete: [7] Ctrl + T — New Tab
+  Delete: [4] Ctrl + Alt + T -- Open Gnome Terminal
   Are you sure? (y/N): y
 
-  ✓ Shortcut #7 deleted.
+  OK  Shortcut #4 deleted.
 ```
 
-### Filtering by category
+### Filter by category
 
 ```bash
 jshortcuts cat Terminal
-jshortcuts cat Browser
 jshortcuts cat "VS Code"
 ```
 
-### Searching
+### Search
 
 ```bash
 jshortcuts search ctrl
 jshortcuts search terminal
-jshortcuts search snap
+jshortcuts search "new tab"
 ```
+
+### Open data file
+
+```bash
+jshortcuts open
+```
+
+Opens `~/.jshortcuts.json` in your default editor (gedit, nano, etc).
 
 ---
 
-## 🪟 GUI Usage
+## GUI Usage
 
 ```bash
 jshortcuts gui
 # or:
 python3 ~/bin/jshortcuts-gui.py
-# or: search "jshortcuts" in the Ubuntu app menu
+# or: search "jshortcuts" in the Ubuntu app menu (Super key)
 ```
 
-### Window layout
+### Two tabs
 
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│ ⌨  jshortcuts       my keyboard shortcuts         [⌕ search...    ] │
-├────────────────┬─────────────────────────────────────────────────────┤
-│ CATEGORIES     │  12 shortcut(s)         [+ Add]  [✎ Edit] [✕ Delete]│
-│                ├─────────────────────────────────────────────────────┤
-│  All           │  ▸ NAVIGATION                                       │
-│  Navigation    │   [1]  Super + D              Show / Hide Desktop   │
-│  Terminal      │   [2]  Super + Left/Right     Snap to half screen   │
-│  Browser       │                                                     │
-│  System        │  ▸ TERMINAL                                         │
-│                │   [4]  Ctrl + Alt + T         Open Terminal         │
-│                │         Default Ubuntu terminal shortcut            │
-├────────────────┴─────────────────────────────────────────────────────┤
-│  data: /home/yourname/.jshortcuts.json                               │
-└──────────────────────────────────────────────────────────────────────┘
-```
+**Shortcuts tab** -- your main view with:
+- Category sidebar on the left (click to filter)
+- Colour-coded shortcut list with category grouping
+- + Add / Edit / Delete buttons in the toolbar
+- Real-time search box in the top bar
+- "Open File" button -- opens the JSON in your editor
+- "GitHub" button -- push your shortcuts to GitHub
 
-### GUI actions
+**CLI Reference tab** -- a built-in reference showing every jshortcuts command with description and usage notes. No need to open the terminal to look up commands.
 
-| Action | How to do it |
-|---|---|
-| Select a shortcut | Single click on a row |
-| Edit a shortcut | Double-click a row, **or** select then click ✎ Edit |
-| Add a shortcut | Click **+ Add**, fill the form, click **Save** |
-| Delete a shortcut | Single-click to select, then click **✕ Delete** |
-| Filter by category | Click a category name in the left sidebar |
-| Search | Type in the search box (top right) |
-| Scroll | Mouse wheel or trackpad |
+### Row selection
 
-> **Tip:** In the Add/Edit dialog, press **Enter** to save or **Escape** to cancel.
+- **Single click** -- selects a row (highlighted blue with a bright left border)
+- **Double click** -- opens the Edit dialog immediately
+- **Edit button** -- edits the currently selected row
+- **Delete button** -- deletes the currently selected row
+
+### Ctrl+C from terminal
+
+If you launched the GUI from a terminal with `jshortcuts gui`, pressing Ctrl+C in that terminal will close the GUI window cleanly.
 
 ---
 
-## 📄 Data File Format
+## GitHub Sync
 
-All shortcuts live in `~/.jshortcuts.json`. You can edit this file directly in any text editor — both the CLI and GUI will pick up your changes on the next run.
+You can push your `~/.jshortcuts.json` to a personal GitHub repository so it is backed up and accessible from other machines.
+
+### In the CLI
+
+```bash
+jshortcuts github
+```
+
+You will be prompted for your repo URL and a commit message. The tool will:
+1. Copy your shortcuts file to `~/.jshortcuts-sync/`
+2. Run `git init` and set the remote (first time only)
+3. Commit and push
+
+### In the GUI
+
+Click the **GitHub** button in the top-right corner of the window. Enter your repo URL and commit message, then click Push.
+
+### Requirements
+
+```bash
+# Install git if not already installed:
+sudo apt install git
+
+# For HTTPS repos you need a GitHub Personal Access Token (PAT):
+# 1. Go to https://github.com/settings/tokens
+# 2. Generate a new token with repo scope
+# 3. Use it as your password when git prompts for credentials
+
+# Or use SSH (no password prompts after setup):
+# https://docs.github.com/en/authentication/connecting-to-github-with-ssh
+```
+
+### Sync directory
+
+All git operations happen in `~/.jshortcuts-sync/`. Your original data file `~/.jshortcuts.json` is never moved.
+
+---
+
+## Launch via Ubuntu Custom Shortcut
+
+You can assign a keyboard shortcut (for example `Ctrl+Alt+J`) to open the jshortcuts GUI from anywhere on your desktop — just like how `Ctrl+Alt+T` opens the terminal.
+
+**Step-by-step:**
+
+**Step 1 -- Open Settings**
+
+Press the Super key, type "Settings", and open the Settings app.
+
+**Step 2 -- Go to Keyboard Shortcuts**
+
+In Settings, click **Keyboard** in the left panel.
+Then click **View and Customize Shortcuts** (or just **Keyboard Shortcuts** depending on your Ubuntu version).
+
+**Step 3 -- Scroll to the bottom and click Custom Shortcuts**
+
+Scroll all the way down to find **Custom Shortcuts**, then click the **+** button to add a new one.
+
+**Step 4 -- Fill in the details**
+
+A dialog will appear asking for three things:
+
+| Field | What to enter |
+|---|---|
+| Name | `jshortcuts` |
+| Command | `/home/YOUR_USERNAME/bin/jshortcuts-gui.py` |
+| Shortcut | (leave blank for now, set in next step) |
+
+Replace `YOUR_USERNAME` with your actual Ubuntu username. To find it, open a terminal and run:
+
+```bash
+whoami
+```
+
+So if your username is `jbtechnix`, the command would be:
+
+```
+/home/jbtechnix/bin/jshortcuts-gui.py
+```
+
+Click **Add** to save the entry.
+
+**Step 5 -- Assign the keyboard shortcut**
+
+The new entry will appear in the list. Click on it to expand it, then click the shortcut field (it will say "Disabled").
+
+Press the key combination you want -- for example hold `Ctrl`, hold `Alt`, then press `J`. Ubuntu will capture it and show `Ctrl+Alt+J`.
+
+Click **Set** to confirm.
+
+**Step 6 -- Test it**
+
+Close Settings. Press your chosen shortcut (`Ctrl+Alt+J` or whatever you picked).
+
+The jshortcuts GUI window should open immediately.
+
+**Alternative command using the CLI wrapper:**
+
+If the direct path does not work, use the full python3 call:
+
+```
+python3 /home/YOUR_USERNAME/bin/jshortcuts-gui.py
+```
+
+Or using the CLI tool:
+
+```
+/home/YOUR_USERNAME/bin/jshortcuts gui
+```
+
+**Note:** If you get a "command not found" or nothing happens, make sure the script is executable:
+
+```bash
+chmod +x ~/bin/jshortcuts-gui.py
+```
+
+---
+
+## Data File Format
+
+All shortcuts live in `~/.jshortcuts.json`. Edit this file directly in any text editor -- both CLI and GUI pick up changes on the next run.
 
 ```json
 {
@@ -371,21 +509,19 @@ All shortcuts live in `~/.jshortcuts.json`. You can edit this file directly in a
 }
 ```
 
-**Fields:**
-
 | Field | Required | Description |
 |---|---|---|
-| `id` | auto | Unique integer, assigned automatically, never reused |
+| `id` | auto | Unique integer, never reused |
 | `category` | yes | Group label (Navigation, Terminal, Browser, etc.) |
-| `keys` | yes | The key combination, e.g. `Ctrl + Shift + P` |
+| `keys` | yes | Key combination, e.g. `Ctrl + Shift + P` |
 | `description` | yes | What the shortcut does |
-| `notes` | no | Extra info, tip, or context |
+| `notes` | no | Extra info or context |
 
 ---
 
-## 💡 Examples
+## Examples
 
-### Add a full VS Code shortcut set
+### Build a VS Code shortcut set
 
 ```bash
 jshortcuts add   # Category: VS Code | Keys: Ctrl + P        | Description: Quick file open
@@ -394,7 +530,7 @@ jshortcuts add   # Category: VS Code | Keys: Ctrl + `         | Description: Tog
 jshortcuts add   # Category: VS Code | Keys: Ctrl + B         | Description: Toggle sidebar
 ```
 
-Then view them:
+Then view just VS Code shortcuts:
 
 ```bash
 jshortcuts cat "VS Code"
@@ -412,7 +548,7 @@ cp ~/.jshortcuts.json ~/Desktop/shortcuts_backup_$(date +%Y%m%d).json
 cp ~/Desktop/shortcuts_backup_20260327.json ~/.jshortcuts.json
 ```
 
-### Reset to the default examples
+### Reset to the bundled defaults
 
 ```bash
 cp ~/bin/jshortcuts_default.json ~/.jshortcuts.json
@@ -420,86 +556,69 @@ cp ~/bin/jshortcuts_default.json ~/.jshortcuts.json
 
 ---
 
-## 🗑 Uninstall
+## Uninstall
 
 ```bash
 bash uninstall.sh
 ```
 
-**The uninstaller removes:**
-- `~/bin/jshortcuts`
-- `~/bin/jshortcuts-gui.py`
-- `~/bin/jshortcuts_default.json`
-- The `.desktop` app launcher
-
-**Your data file `~/.jshortcuts.json` is kept by default.** The uninstaller will ask if you want to delete it too.
+The uninstaller removes the scripts and desktop launcher. Your `~/.jshortcuts.json` data file is **kept by default** and the script will ask whether you want to delete it too.
 
 To also remove the PATH line added to your shell config:
 
 ```bash
-# Open ~/.bashrc and remove the two lines that mention jshortcuts
 nano ~/.bashrc
+# Remove the two lines that contain "jshortcuts"
 ```
 
 ---
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
-### `jshortcuts: command not found` after install
+### `jshortcuts: command not found`
 
-The installer already updated your shell config, but the current terminal may need refreshing:
+The current terminal needs refreshing after install:
 
 ```bash
 source ~/.bashrc
-# or, if using zsh:
-source ~/.zshrc
 ```
 
-Then try `jshortcuts` again. New terminal windows will work automatically.
+New terminal windows work automatically without this step.
 
-### GUI doesn't open
+### GUI does not open
 
 ```bash
-# Check tkinter
 python3 -c "import tkinter; print('OK')"
-# Install if missing
+# If that fails:
 sudo apt install python3-tk
 ```
 
-### Font looks different / plain
+### Font looks different or plain
 
-Install JetBrains Mono for the best experience:
+Install JetBrains Mono for the intended look:
 
 ```bash
 sudo apt install fonts-jetbrains-mono
 ```
 
-Log out and back in for it to take effect.
+Log out and back in for fonts to take effect.
 
-### My shortcuts disappeared / data is empty
-
-Check if the data file exists:
-
-```bash
-cat ~/.jshortcuts.json
-```
-
-If it's missing or empty, restore from the defaults:
+### Data file is empty or missing
 
 ```bash
 cp ~/bin/jshortcuts_default.json ~/.jshortcuts.json
 ```
 
-### Permission denied when running
+### GitHub push fails
 
-```bash
-chmod +x ~/bin/jshortcuts
-chmod +x ~/bin/jshortcuts-gui.py
-```
+- Check that `git` is installed: `git --version`
+- Verify your repo URL is correct (copy it from GitHub)
+- For HTTPS repos: use a Personal Access Token as your password
+- For SSH repos: make sure your SSH key is added to GitHub
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
 
@@ -510,13 +629,13 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
-## 📜 Changelog
+## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
-## 📄 License
+## License
 
-MIT © 2026 [Jbtechnix - Mr. Humble Beginnings](https://github.com/johnboscocjt)  
+MIT (c) 2026 [Jbtechnix - Mr. Humble Beginnings](https://github.com/johnboscocjt)
 See [LICENSE](LICENSE) for full text.
