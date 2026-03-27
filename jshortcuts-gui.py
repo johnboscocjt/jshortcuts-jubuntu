@@ -25,7 +25,6 @@ FG       = "#e2e8f0"
 FG_DIM   = "#6b7a99"
 SUCCESS  = "#48bb78"
 DANGER   = "#fc5c65"
-WARNING  = "#f6ad55"
 
 CAT_COLORS = ["#5b8af5", "#f6ad55", "#48bb78", "#fc5c65", "#b794f4", "#4fd1c5"]
 
@@ -60,7 +59,15 @@ def save_data(data):
 # ── Add / Edit dialog ─────────────────────────────────────────────────────────
 
 class ShortcutDialog(tk.Toplevel):
-    """Modal dialog for creating or editing a shortcut."""
+    """
+    Modal dialog for creating or editing a shortcut.
+
+    Layout order (pack side):
+      top    → header bar  (fixed height)
+      bottom → button bar  (fixed height, packed BEFORE form so it's always visible)
+      bottom → divider line
+      top    → form area   (fills remaining space)
+    """
 
     def __init__(self, parent, title, categories, shortcut=None):
         super().__init__(parent)
@@ -70,73 +77,94 @@ class ShortcutDialog(tk.Toplevel):
         self.resizable(False, False)
         self.grab_set()
 
-        self.geometry("500x380")
+        W, H = 520, 460
+        self.geometry(f"{W}x{H}")
         self.update_idletasks()
-        px = parent.winfo_x() + (parent.winfo_width()  - 500) // 2
-        py = parent.winfo_y() + (parent.winfo_height() - 380) // 2
-        self.geometry(f"+{px}+{py}")
+        px = parent.winfo_x() + (parent.winfo_width()  - W) // 2
+        py = parent.winfo_y() + (parent.winfo_height() - H) // 2
+        self.geometry(f"{W}x{H}+{px}+{py}")
 
         self._build(categories, shortcut or {})
 
-    def _entry(self, parent, label, row, value=""):
-        tk.Label(parent, text=label, bg=BG2, fg=FG_DIM,
-                 font=FONT_SMALL, anchor="w").grid(
-            row=row, column=0, sticky="w", pady=(10, 2))
+    # ── Helpers ───────────────────────────────────────────────────────────────
+
+    def _field_label(self, parent, text):
+        tk.Label(parent, text=text, bg=BG2, fg=FG_DIM,
+                 font=FONT_SMALL, anchor="w").pack(fill="x", pady=(12, 3))
+
+    def _entry_field(self, parent, value=""):
         var = tk.StringVar(value=value)
-        e = tk.Entry(parent, textvariable=var, bg=BG3, fg=FG,
-                     font=FONT_BODY, relief="flat",
-                     insertbackground=ACCENT,
-                     highlightthickness=1,
-                     highlightbackground=BG3,
-                     highlightcolor=ACCENT)
-        e.grid(row=row + 1, column=0, sticky="ew", ipady=6)
+        tk.Entry(parent, textvariable=var,
+                 bg=BG3, fg=FG, font=FONT_BODY,
+                 relief="flat", insertbackground=ACCENT,
+                 highlightthickness=1,
+                 highlightbackground=BG3,
+                 highlightcolor=ACCENT
+                 ).pack(fill="x", ipady=7)
         return var
 
+    # ── Build ─────────────────────────────────────────────────────────────────
+
     def _build(self, categories, s):
-        # Header bar
-        hdr = tk.Frame(self, bg=ACCENT2, height=48)
-        hdr.pack(fill="x")
+
+        # 1 ── Header (top, fixed) ─────────────────────────────────────────────
+        hdr = tk.Frame(self, bg=ACCENT2, height=50)
+        hdr.pack(side="top", fill="x")
         hdr.pack_propagate(False)
-        tk.Label(hdr, text=f"  ⌨  {self.title()}", bg=ACCENT2, fg="white",
-                 font=FONT_BOLD, anchor="w").pack(side="left", padx=12, pady=10)
+        tk.Label(hdr, text=f"  ⌨   {self.title()}",
+                 bg=ACCENT2, fg="white", font=FONT_BOLD, anchor="w"
+                 ).pack(side="left", padx=14, pady=13)
 
-        # Form
-        form = tk.Frame(self, bg=BG2, padx=24, pady=16)
-        form.pack(fill="both", expand=True, padx=16, pady=12)
-        form.columnconfigure(0, weight=1)
+        # 2 ── Button bar (bottom, fixed) — MUST be packed before the form
+        #      so tkinter always reserves space for it regardless of form size
+        btn_bar = tk.Frame(self, bg=BG, height=62)
+        btn_bar.pack(side="bottom", fill="x")
+        btn_bar.pack_propagate(False)
 
-        # Category combobox
-        tk.Label(form, text="Category", bg=BG2, fg=FG_DIM,
-                 font=FONT_SMALL, anchor="w").grid(
-            row=0, column=0, sticky="w", pady=(0, 2))
+        tk.Button(btn_bar, text="  Cancel  ", command=self.destroy,
+                  bg=BG3, fg=FG_DIM, font=FONT_BODY,
+                  relief="flat", padx=14, pady=8, cursor="hand2",
+                  activebackground=BG2, activeforeground=FG
+                  ).pack(side="right", padx=(6, 18), pady=13)
+
+        tk.Button(btn_bar, text="  Save  ", command=self._save,
+                  bg=ACCENT, fg="white", font=FONT_BOLD,
+                  relief="flat", padx=20, pady=8, cursor="hand2",
+                  activebackground=ACCENT2, activeforeground="white"
+                  ).pack(side="right", pady=13)
+
+        # 3 ── Thin divider above button bar
+        tk.Frame(self, bg=BG3, height=1).pack(side="bottom", fill="x")
+
+        # 4 ── Form (fills the space between header and button bar) ───────────
+        form = tk.Frame(self, bg=BG2, padx=26, pady=4)
+        form.pack(side="top", fill="both", expand=True, padx=14, pady=(8, 0))
+
+        # Category — combobox so user can pick existing or type new
+        self._field_label(form, "Category")
         self.cat_var = tk.StringVar(value=s.get("category", ""))
         combo = ttk.Combobox(form, textvariable=self.cat_var,
                              values=categories, font=FONT_BODY)
-        combo.grid(row=1, column=0, sticky="ew", ipady=4)
+        combo.pack(fill="x", ipady=5)
         self._style_combo()
 
-        self.keys_var  = self._entry(form, "Keys (e.g. Ctrl + T)",  2, s.get("keys", ""))
-        self.desc_var  = self._entry(form, "Description",           4, s.get("description", ""))
-        self.notes_var = self._entry(form, "Notes (optional)",      6, s.get("notes", ""))
+        # Keys
+        self._field_label(form, "Keys  (e.g.  Ctrl + T  |  Super + D)")
+        self.keys_var = self._entry_field(form, s.get("keys", ""))
 
-        # Buttons
-        btn_row = tk.Frame(self, bg=BG, pady=8)
-        btn_row.pack(fill="x", padx=20, pady=(0, 16))
+        # Description
+        self._field_label(form, "Description")
+        self.desc_var = self._entry_field(form, s.get("description", ""))
 
-        tk.Button(btn_row, text="Cancel", command=self.destroy,
-                  bg=BG3, fg=FG_DIM, font=FONT_BODY,
-                  relief="flat", padx=16, pady=6, cursor="hand2",
-                  activebackground=BG2, activeforeground=FG).pack(
-            side="right", padx=(8, 0))
+        # Notes
+        self._field_label(form, "Notes  (optional)")
+        self.notes_var = self._entry_field(form, s.get("notes", ""))
 
-        tk.Button(btn_row, text="  Save  ", command=self._save,
-                  bg=ACCENT, fg="white", font=FONT_BOLD,
-                  relief="flat", padx=16, pady=6, cursor="hand2",
-                  activebackground=ACCENT2, activeforeground="white").pack(
-            side="right")
-
+        # Keyboard bindings
         self.bind("<Return>", lambda _: self._save())
         self.bind("<Escape>", lambda _: self.destroy())
+
+    # ── Combobox style ────────────────────────────────────────────────────────
 
     def _style_combo(self):
         style = ttk.Style()
@@ -147,6 +175,8 @@ class ShortcutDialog(tk.Toplevel):
                         selectforeground="white",
                         arrowcolor=FG_DIM, bordercolor=BG3,
                         lightcolor=BG3, darkcolor=BG3)
+
+    # ── Save ──────────────────────────────────────────────────────────────────
 
     def _save(self):
         cat   = self.cat_var.get().strip()
@@ -174,62 +204,68 @@ class JShortcutsApp(tk.Tk):
         super().__init__()
         self.title("jshortcuts")
         self.configure(bg=BG)
-        self.geometry("820x580")
-        self.minsize(600, 400)
+        self.geometry("860x600")
+        self.minsize(620, 420)
 
-        self._cat_color_map  = {}
-        self._selected_id    = None
-        self._rows           = {}
-        self._search_var     = tk.StringVar()
-        self._selected_cat   = tk.StringVar(value="All")
+        self._cat_color_map = {}
+        self._selected_id   = None
+        self._rows          = {}
+        self._search_var    = tk.StringVar()
+        self._selected_cat  = tk.StringVar(value="All")
         self._search_var.trace_add("write", lambda *_: self._refresh())
 
         self._build_ui()
         self._refresh()
 
-        # Centre on screen
         self.update_idletasks()
         sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
-        self.geometry(f"820x580+{(sw - 820)//2}+{(sh - 580)//2}")
+        self.geometry(f"860x600+{(sw - 860)//2}+{(sh - 600)//2}")
 
     # ── UI construction ───────────────────────────────────────────────────────
 
     def _build_ui(self):
+        # Status bar — packed first (side=bottom) so always visible
+        status = tk.Frame(self, bg=BG2, height=28)
+        status.pack(side="bottom", fill="x")
+        status.pack_propagate(False)
+        tk.Label(status, text=f"  data: {DATA_FILE}",
+                 bg=BG2, fg=FG_DIM,
+                 font=("JetBrains Mono", 8), anchor="w"
+                 ).pack(side="left", pady=6)
+
         # Top bar
         topbar = tk.Frame(self, bg=BG2, height=56)
-        topbar.pack(fill="x")
+        topbar.pack(side="top", fill="x")
         topbar.pack_propagate(False)
 
         tk.Label(topbar, text="⌨", bg=BG2, fg=ACCENT,
-                 font=("JetBrains Mono", 20)).pack(side="left", padx=(16, 6), pady=10)
+                 font=("JetBrains Mono", 20)
+                 ).pack(side="left", padx=(16, 6), pady=10)
         tk.Label(topbar, text="jshortcuts", bg=BG2, fg=FG,
                  font=FONT_TITLE).pack(side="left", pady=10)
         tk.Label(topbar, text="my keyboard shortcuts", bg=BG2, fg=FG_DIM,
                  font=FONT_SMALL).pack(side="left", padx=(8, 0), pady=14)
 
-        # Search box
         sf = tk.Frame(topbar, bg=BG3, padx=8, pady=4)
         sf.pack(side="right", padx=16, pady=10)
         tk.Label(sf, text="⌕", bg=BG3, fg=FG_DIM,
                  font=("JetBrains Mono", 12)).pack(side="left")
         tk.Entry(sf, textvariable=self._search_var,
                  bg=BG3, fg=FG, font=FONT_BODY,
-                 relief="flat", width=20,
+                 relief="flat", width=22,
                  insertbackground=ACCENT).pack(side="left", padx=4)
 
-        # Main area: sidebar + list
+        # Main area
         main_area = tk.Frame(self, bg=BG)
-        main_area.pack(fill="both", expand=True)
+        main_area.pack(side="top", fill="both", expand=True)
 
         # Sidebar
-        sidebar = tk.Frame(main_area, bg=BG2, width=160)
+        sidebar = tk.Frame(main_area, bg=BG2, width=165)
         sidebar.pack(side="left", fill="y")
         sidebar.pack_propagate(False)
-
         tk.Label(sidebar, text="CATEGORIES", bg=BG2, fg=FG_DIM,
-                 font=("JetBrains Mono", 8), anchor="w").pack(
-            fill="x", padx=12, pady=(16, 8))
-
+                 font=("JetBrains Mono", 8), anchor="w"
+                 ).pack(fill="x", padx=12, pady=(16, 8))
         self._cat_frame = tk.Frame(sidebar, bg=BG2)
         self._cat_frame.pack(fill="x")
 
@@ -239,12 +275,10 @@ class JShortcutsApp(tk.Tk):
 
         # Toolbar
         toolbar = tk.Frame(right, bg=BG, pady=8, padx=16)
-        toolbar.pack(fill="x")
-
+        toolbar.pack(side="top", fill="x")
         self._count_label = tk.Label(toolbar, text="", bg=BG,
                                      fg=FG_DIM, font=FONT_SMALL)
         self._count_label.pack(side="left")
-
         for text, cmd, color in [
             ("+ Add",    self._add,    SUCCESS),
             ("✎ Edit",   self._edit,   ACCENT),
@@ -252,14 +286,13 @@ class JShortcutsApp(tk.Tk):
         ]:
             tk.Button(toolbar, text=text, command=cmd,
                       bg=color, fg="white", font=FONT_SMALL,
-                      relief="flat", padx=10, pady=4, cursor="hand2",
-                      activebackground=BG3, activeforeground=FG).pack(
-                side="right", padx=4)
+                      relief="flat", padx=11, pady=5, cursor="hand2",
+                      activebackground=BG3, activeforeground=FG
+                      ).pack(side="right", padx=4)
 
-        # Scrollable canvas
+        # Scrollable list
         canvas_frame = tk.Frame(right, bg=BG)
-        canvas_frame.pack(fill="both", expand=True)
-
+        canvas_frame.pack(side="top", fill="both", expand=True)
         self._canvas = tk.Canvas(canvas_frame, bg=BG, highlightthickness=0)
         scrollbar = tk.Scrollbar(canvas_frame, orient="vertical",
                                  command=self._canvas.yview, bg=BG2)
@@ -283,33 +316,23 @@ class JShortcutsApp(tk.Tk):
         self._canvas.bind_all("<Button-5>",
             lambda _: self._canvas.yview_scroll(1, "units"))
 
-        # Status bar
-        status = tk.Frame(self, bg=BG2, height=28)
-        status.pack(fill="x", side="bottom")
-        status.pack_propagate(False)
-        tk.Label(status, text=f"  data: {DATA_FILE}", bg=BG2, fg=FG_DIM,
-                 font=("JetBrains Mono", 8), anchor="w").pack(
-            side="left", pady=6)
-
     # ── Sidebar ───────────────────────────────────────────────────────────────
 
     def _build_sidebar(self, categories):
         for w in self._cat_frame.winfo_children():
             w.destroy()
-
         for cat in ["All"] + categories:
             selected = (self._selected_cat.get() == cat)
             color = self._cat_color_map.get(cat, ACCENT) if cat != "All" else ACCENT
-            bg    = BG3  if selected else BG2
-            fg    = color if selected else FG_DIM
-
+            bg = BG3 if selected else BG2
+            fg = color if selected else FG_DIM
             tk.Button(self._cat_frame, text=cat,
                       command=lambda c=cat: self._select_cat(c),
                       bg=bg, fg=fg, font=FONT_SMALL,
-                      relief="flat", anchor="w", padx=12, pady=5,
+                      relief="flat", anchor="w", padx=12, pady=6,
                       cursor="hand2",
-                      activebackground=BG3,
-                      activeforeground=FG).pack(fill="x")
+                      activebackground=BG3, activeforeground=FG
+                      ).pack(fill="x")
 
     def _select_cat(self, cat):
         self._selected_cat.set(cat)
@@ -318,23 +341,18 @@ class JShortcutsApp(tk.Tk):
     # ── Refresh ───────────────────────────────────────────────────────────────
 
     def _refresh(self):
-        data      = load_data()
+        data = load_data()
         shortcuts = data["shortcuts"]
-
-        # Rebuild category colour map
         cats = []
         for s in shortcuts:
             if s["category"] not in cats:
                 cats.append(s["category"])
         for i, cat in enumerate(cats):
             self._cat_color_map[cat] = CAT_COLORS[i % len(CAT_COLORS)]
-
         self._build_sidebar(cats)
 
-        # Apply filters
         sel_cat = self._selected_cat.get()
         query   = self._search_var.get().strip().lower()
-
         filtered = shortcuts
         if sel_cat != "All":
             filtered = [s for s in filtered if s["category"] == sel_cat]
@@ -353,7 +371,6 @@ class JShortcutsApp(tk.Tk):
     def _render_list(self, shortcuts):
         for w in self._list_frame.winfo_children():
             w.destroy()
-
         self._selected_id = None
         self._rows = {}
 
@@ -370,14 +387,11 @@ class JShortcutsApp(tk.Tk):
 
         for cat, items in grouped.items():
             color = self._cat_color_map.get(cat, ACCENT)
-
-            # Category header
             hdr = tk.Frame(self._list_frame, bg=BG)
             hdr.pack(fill="x", padx=16, pady=(16, 6))
             tk.Frame(hdr, bg=color, width=4, height=18).pack(side="left")
             tk.Label(hdr, text=f"  {cat.upper()}", bg=BG, fg=color,
                      font=("JetBrains Mono", 9, "bold")).pack(side="left")
-
             for s in items:
                 self._make_row(s, color)
 
@@ -385,22 +399,19 @@ class JShortcutsApp(tk.Tk):
         sid = s["id"]
         row = tk.Frame(self._list_frame, bg=BG2, cursor="hand2")
         row.pack(fill="x", padx=16, pady=2)
-
         tk.Frame(row, bg=BG3, width=4).pack(side="left", fill="y")
         tk.Label(row, text=f" {sid} ", bg=BG3, fg=FG_DIM,
-                 font=FONT_SMALL).pack(side="left", padx=(6, 0), pady=8)
-
-        keys_lbl = tk.Label(row, text=f"  {s['keys']}  ", bg=BG3,
-                            fg=cat_color, font=FONT_BOLD, padx=4)
-        keys_lbl.pack(side="left", padx=8, pady=8)
-
+                 font=FONT_SMALL).pack(side="left", padx=(6, 0), pady=10)
+        keys_lbl = tk.Label(row, text=f"  {s['keys']}  ",
+                            bg=BG3, fg=cat_color, font=FONT_BOLD, padx=4)
+        keys_lbl.pack(side="left", padx=8, pady=10)
         text_frame = tk.Frame(row, bg=BG2)
         text_frame.pack(side="left", fill="both", expand=True, pady=8)
-        tk.Label(text_frame, text=s["description"], bg=BG2, fg=FG,
-                 font=FONT_BODY, anchor="w").pack(fill="x")
+        tk.Label(text_frame, text=s["description"],
+                 bg=BG2, fg=FG, font=FONT_BODY, anchor="w").pack(fill="x")
         if s.get("notes"):
-            tk.Label(text_frame, text=s["notes"], bg=BG2, fg=FG_DIM,
-                     font=FONT_SMALL, anchor="w").pack(fill="x")
+            tk.Label(text_frame, text=s["notes"],
+                     bg=BG2, fg=FG_DIM, font=FONT_SMALL, anchor="w").pack(fill="x")
 
         for widget in (row, keys_lbl, text_frame):
             widget.bind("<Button-1>", lambda _, i=sid: self._select_row(i))
@@ -408,7 +419,6 @@ class JShortcutsApp(tk.Tk):
             widget.bind("<Enter>",    lambda _, r=row: r.config(bg=BG3))
             widget.bind("<Leave>",    lambda _, r=row, i=sid: r.config(
                 bg=BG3 if self._selected_id == i else BG2))
-
         self._rows[sid] = row
 
     def _select_row(self, sid):
@@ -469,7 +479,7 @@ class JShortcutsApp(tk.Tk):
             return
         if messagebox.askyesno(
                 "Delete Shortcut",
-                f"Delete shortcut #{sid}?\n\n{match['keys']} — {match['description']}",
+                f"Delete shortcut #{sid}?\n\n{match['keys']}  —  {match['description']}",
                 parent=self):
             data["shortcuts"] = [s for s in data["shortcuts"] if s["id"] != sid]
             save_data(data)
