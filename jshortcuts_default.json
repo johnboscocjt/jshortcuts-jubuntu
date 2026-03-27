@@ -1,0 +1,89 @@
+{
+  "shortcuts": [
+    {
+      "id": 1,
+      "category": "Navigation",
+      "keys": "Super + D",
+      "description": "Show / Hide Desktop",
+      "notes": ""
+    },
+    {
+      "id": 2,
+      "category": "Navigation",
+      "keys": "Super + Left / Right",
+      "description": "Snap window to half screen",
+      "notes": ""
+    },
+    {
+      "id": 3,
+      "category": "Navigation",
+      "keys": "Super + Up",
+      "description": "Maximise window",
+      "notes": ""
+    },
+    {
+      "id": 4,
+      "category": "Terminal",
+      "keys": "Ctrl + Alt + T",
+      "description": "Open Terminal",
+      "notes": "Default Ubuntu terminal shortcut"
+    },
+    {
+      "id": 5,
+      "category": "Terminal",
+      "keys": "Ctrl + Shift + C",
+      "description": "Copy in Terminal",
+      "notes": ""
+    },
+    {
+      "id": 6,
+      "category": "Terminal",
+      "keys": "Ctrl + Shift + V",
+      "description": "Paste in Terminal",
+      "notes": ""
+    },
+    {
+      "id": 7,
+      "category": "Browser",
+      "keys": "Ctrl + T",
+      "description": "New Tab",
+      "notes": ""
+    },
+    {
+      "id": 8,
+      "category": "Browser",
+      "keys": "Ctrl + Shift + T",
+      "description": "Reopen closed Tab",
+      "notes": ""
+    },
+    {
+      "id": 9,
+      "category": "Browser",
+      "keys": "Ctrl + L",
+      "description": "Focus address bar",
+      "notes": ""
+    },
+    {
+      "id": 10,
+      "category": "System",
+      "keys": "Ctrl + Alt + Del",
+      "description": "Log Out / System Monitor",
+      "notes": ""
+    },
+    {
+      "id": 11,
+      "category": "System",
+      "keys": "PrtSc",
+      "description": "Take screenshot",
+      "notes": "Saved to ~/Pictures"
+    },
+    {
+      "id": 12,
+      "category": "System",
+      "keys": "Alt + F4",
+      "description": "Close active window",
+      "notes": ""
+    }
+  ],
+  "next_id": 13
+}

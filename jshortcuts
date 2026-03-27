@@ -1,0 +1,337 @@
+#!/usr/bin/env python3
+"""
+jshortcuts — CLI tool to view and manage your personal keyboard shortcuts.
+
+Usage:
+  jshortcuts              List all shortcuts
+  jshortcuts add          Add a new shortcut (interactive)
+  jshortcuts edit <id>    Edit a shortcut by ID
+  jshortcuts del <id>     Delete a shortcut by ID
+  jshortcuts cat <name>   Filter by category
+  jshortcuts search <q>   Search shortcuts
+  jshortcuts gui          Launch the GUI window
+  jshortcuts help         Show this help
+
+Data file: ~/.jshortcuts.json  (shared with the GUI)
+"""
+
+import json
+import os
+import sys
+import shutil
+
+DATA_FILE = os.path.expanduser("~/.jshortcuts.json")
+DEFAULT_DATA = {"shortcuts": [], "next_id": 1}
+
+# ── ANSI Colors ──────────────────────────────────────────────────────────────
+RESET   = "\033[0m"
+BOLD    = "\033[1m"
+DIM     = "\033[2m"
+
+RED     = "\033[31m"
+GREEN   = "\033[32m"
+YELLOW  = "\033[33m"
+BLUE    = "\033[34m"
+MAGENTA = "\033[35m"
+CYAN    = "\033[36m"
+WHITE   = "\033[37m"
+
+CATEGORY_COLORS = [CYAN, YELLOW, GREEN, MAGENTA, BLUE, RED]
+
+
+def color_support():
+    """Return True if the terminal supports ANSI colours."""
+    return sys.stdout.isatty()
+
+
+def c(text, *codes):
+    """Wrap text in ANSI codes (no-op if no colour support)."""
+    if not color_support():
+        return str(text)
+    return "".join(codes) + str(text) + RESET
+
+
+# ── Data helpers ─────────────────────────────────────────────────────────────
+
+def load_data():
+    """Load shortcut data from ~/.jshortcuts.json, creating it if missing."""
+    if not os.path.exists(DATA_FILE):
+        # Try to copy the bundled default next to this script
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        default = os.path.join(script_dir, "jshortcuts_default.json")
+        if os.path.exists(default):
+            shutil.copy(default, DATA_FILE)
+        else:
+            save_data(DEFAULT_DATA)
+    with open(DATA_FILE, "r") as f:
+        return json.load(f)
+
+
+def save_data(data):
+    """Persist data to ~/.jshortcuts.json."""
+    with open(DATA_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+def get_categories(data):
+    """Return ordered list of unique categories."""
+    seen = []
+    for s in data["shortcuts"]:
+        if s["category"] not in seen:
+            seen.append(s["category"])
+    return seen
+
+
+def cat_color(category, categories):
+    """Return an ANSI colour code for a category."""
+    idx = categories.index(category) % len(CATEGORY_COLORS)
+    return CATEGORY_COLORS[idx]
+
+
+# ── Display ──────────────────────────────────────────────────────────────────
+
+def term_width():
+    return shutil.get_terminal_size((80, 24)).columns
+
+
+def print_header():
+    w = term_width()
+    title = " ⌨  jshortcuts — My Keyboard Shortcuts "
+    bar = "─" * ((w - len(title)) // 2)
+    print()
+    print(c(bar + title + bar, BOLD, CYAN))
+    print()
+
+
+def print_shortcuts(shortcuts, categories):
+    if not shortcuts:
+        print(c("  No shortcuts found.", DIM))
+        return
+
+    # Group by category preserving order
+    grouped = {}
+    for s in shortcuts:
+        grouped.setdefault(s["category"], []).append(s)
+
+    for cat, items in grouped.items():
+        cc = cat_color(cat, categories)
+        print(c(f"  ▸ {cat}", BOLD, cc))
+        print()
+        for s in items:
+            id_str = c(f"[{s['id']:>3}]", DIM)
+            keys   = c(f"{s['keys']:<28}", BOLD, WHITE)
+            desc   = s["description"]
+            print(f"    {id_str}  {keys}  {desc}")
+            if s.get("notes"):
+                print(f"         {' ' * 28}  {c('↳ ' + s['notes'], DIM)}")
+        print()
+
+
+def list_shortcuts(filter_cat=None, query=None):
+    data = load_data()
+    shortcuts = data["shortcuts"]
+    categories = get_categories(data)
+
+    if filter_cat:
+        shortcuts = [s for s in shortcuts
+                     if s["category"].lower() == filter_cat.lower()]
+    if query:
+        q = query.lower()
+        shortcuts = [s for s in shortcuts
+                     if q in s["keys"].lower()
+                     or q in s["description"].lower()
+                     or q in s.get("notes", "").lower()
+                     or q in s["category"].lower()]
+
+    print_header()
+
+    if not shortcuts:
+        print(c("  No results found.\n", YELLOW))
+    else:
+        print_shortcuts(shortcuts, categories)
+
+    w = term_width()
+    print(c("─" * w, DIM))
+    print(c(f"  {len(shortcuts)} shortcut(s)  │  data: {DATA_FILE}", DIM))
+    print(c("  jshortcuts add | edit <id> | del <id> | gui", DIM))
+    print()
+
+
+# ── Add ──────────────────────────────────────────────────────────────────────
+
+def prompt(label, default=""):
+    hint = f" [{default}]" if default else ""
+    val = input(c(f"  {label}{hint}: ", CYAN)).strip()
+    return val if val else default
+
+
+def add_shortcut():
+    data = load_data()
+    categories = get_categories(data)
+
+    print()
+    print(c("  ── Add New Shortcut ──────────────────", BOLD, CYAN))
+    print()
+
+    if categories:
+        print(c("  Existing categories: ", DIM)
+              + ", ".join(c(cat, YELLOW) for cat in categories))
+
+    category    = prompt("Category (e.g. Terminal, Browser)")
+    keys        = prompt("Keys (e.g. Ctrl + T)")
+    description = prompt("Description")
+    notes       = prompt("Notes (optional)")
+
+    if not category or not keys or not description:
+        print(c("\n  ✗ Category, keys, and description are required.", RED))
+        return
+
+    entry = {
+        "id":          data["next_id"],
+        "category":    category,
+        "keys":        keys,
+        "description": description,
+        "notes":       notes,
+    }
+    data["shortcuts"].append(entry)
+    data["next_id"] += 1
+    save_data(data)
+
+    print()
+    print(c(f"  ✓ Shortcut #{entry['id']} added.", GREEN, BOLD))
+    print()
+
+
+# ── Edit ─────────────────────────────────────────────────────────────────────
+
+def edit_shortcut(sid):
+    data = load_data()
+    match = next((s for s in data["shortcuts"] if s["id"] == sid), None)
+
+    if not match:
+        print(c(f"\n  ✗ No shortcut with ID {sid} found.", RED))
+        return
+
+    print()
+    print(c(f"  ── Edit Shortcut #{sid} ─────────────────", BOLD, CYAN))
+    print(c("  (Press Enter to keep current value)\n", DIM))
+
+    match["category"]    = prompt("Category",    match["category"])
+    match["keys"]        = prompt("Keys",         match["keys"])
+    match["description"] = prompt("Description",  match["description"])
+    match["notes"]       = prompt("Notes",        match.get("notes", ""))
+
+    save_data(data)
+    print()
+    print(c(f"  ✓ Shortcut #{sid} updated.", GREEN, BOLD))
+    print()
+
+
+# ── Delete ───────────────────────────────────────────────────────────────────
+
+def delete_shortcut(sid):
+    data = load_data()
+    match = next((s for s in data["shortcuts"] if s["id"] == sid), None)
+
+    if not match:
+        print(c(f"\n  ✗ No shortcut with ID {sid} found.", RED))
+        return
+
+    print()
+    print(c(f"  Delete: [{sid}] {match['keys']} — {match['description']}", YELLOW))
+    confirm = input(c("  Are you sure? (y/N): ", RED)).strip().lower()
+
+    if confirm == "y":
+        data["shortcuts"] = [s for s in data["shortcuts"] if s["id"] != sid]
+        save_data(data)
+        print(c(f"\n  ✓ Shortcut #{sid} deleted.", GREEN, BOLD))
+    else:
+        print(c("\n  Cancelled.", DIM))
+    print()
+
+
+# ── Launch GUI ───────────────────────────────────────────────────────────────
+
+def launch_gui():
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    gui_path = os.path.join(script_dir, "jshortcuts-gui.py")
+    if not os.path.exists(gui_path):
+        print(c(f"\n  ✗ GUI script not found at: {gui_path}", RED))
+        print(c("  Make sure jshortcuts-gui.py is in the same directory.", DIM))
+        return
+    os.execv(sys.executable, [sys.executable, gui_path])
+
+
+# ── Help ─────────────────────────────────────────────────────────────────────
+
+def print_help():
+    print()
+    print(c("  ⌨  jshortcuts", BOLD, CYAN)
+          + c(" — personal keyboard shortcut manager", DIM))
+    print()
+    print(c("  Usage:", BOLD))
+    cmds = [
+        ("jshortcuts",            "List all shortcuts"),
+        ("jshortcuts add",        "Add a new shortcut (interactive prompts)"),
+        ("jshortcuts edit <id>",  "Edit a shortcut by ID"),
+        ("jshortcuts del <id>",   "Delete a shortcut by ID"),
+        ("jshortcuts cat <name>", "Filter by category name"),
+        ("jshortcuts search <q>", "Search across keys, description, notes"),
+        ("jshortcuts gui",        "Launch the GUI popup window"),
+        ("jshortcuts help",       "Show this help message"),
+    ]
+    for cmd, desc in cmds:
+        print(f"    {c(cmd, YELLOW):<42} {desc}")
+    print()
+    print(c(f"  Data file: {DATA_FILE}", DIM))
+    print()
+
+
+# ── Main ─────────────────────────────────────────────────────────────────────
+
+def main():
+    args = sys.argv[1:]
+
+    if not args:
+        list_shortcuts()
+
+    elif args[0] == "add":
+        add_shortcut()
+
+    elif args[0] == "edit":
+        if len(args) < 2 or not args[1].isdigit():
+            print(c("\n  Usage: jshortcuts edit <id>\n", YELLOW))
+        else:
+            edit_shortcut(int(args[1]))
+
+    elif args[0] in ("del", "delete", "rm"):
+        if len(args) < 2 or not args[1].isdigit():
+            print(c("\n  Usage: jshortcuts del <id>\n", YELLOW))
+        else:
+            delete_shortcut(int(args[1]))
+
+    elif args[0] == "cat":
+        if len(args) < 2:
+            print(c("\n  Usage: jshortcuts cat <category>\n", YELLOW))
+        else:
+            list_shortcuts(filter_cat=" ".join(args[1:]))
+
+    elif args[0] == "search":
+        if len(args) < 2:
+            print(c("\n  Usage: jshortcuts search <query>\n", YELLOW))
+        else:
+            list_shortcuts(query=" ".join(args[1:]))
+
+    elif args[0] == "gui":
+        launch_gui()
+
+    elif args[0] in ("help", "--help", "-h"):
+        print_help()
+
+    else:
+        print(c(f"\n  Unknown command: {args[0]}", RED))
+        print_help()
+
+
+if __name__ == "__main__":
+    main()
