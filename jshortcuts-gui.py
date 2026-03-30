@@ -452,8 +452,7 @@ class GitHubDialog(tk.Toplevel):
             for branch in ("main", "master"):
                 try:
                     subprocess.check_call(
-                        ["git", "merge", "--no-edit", "--strategy-option=theirs",
-                         "origin/{}".format(branch)],
+                        ["git", "reset", "--hard", "origin/{}".format(branch)],
                         cwd=sd, env=env)
                     merged = True
                     break
@@ -876,8 +875,9 @@ class JShortcutsApp(tk.Tk):
         self._sc_sidebar.pack_propagate(False)
         tk.Label(self._sc_sidebar, text="CATEGORIES", bg=BG2, fg=FG_DIM,
                  font=FT2, anchor="w").pack(fill="x", padx=12, pady=(14,6))
-        self._cat_frame = tk.Frame(self._sc_sidebar, bg=BG2)
-        self._cat_frame.pack(fill="x")
+        self._cat_sf = ScrollFrame(self._sc_sidebar, bg=BG2)
+        self._cat_sf.pack(fill="both", expand=True)
+        self._cat_frame = self._cat_sf.inner
 
         # Right pane
         right = tk.Frame(t, bg=BG)
@@ -923,6 +923,7 @@ class JShortcutsApp(tk.Tk):
                       anchor="w", padx=8, pady=5, cursor="hand2",
                       activebackground=BG3, activeforeground=FG
                       ).pack(fill="x")
+        self._cat_sf.bind_scroll_recursive(self._cat_frame)
 
     def _sel_cat_click(self, cat):
         self._sel_cat.set(cat)
@@ -1189,15 +1190,23 @@ class JShortcutsApp(tk.Tk):
         def click(_e, n=name):
             self._select_app(n)
 
+        def on_enter(_e):
+            if self._sel_app != name:
+                row.config(bg=BG3)
+                inner.config(bg=BG3)
+        def on_leave(_e):
+            if self._sel_app != name:
+                row.config(bg=BG_SEL if self._sel_app==name else BG2)
+                inner.config(bg=BG_SEL if self._sel_app==name else BG2)
+
         for widget in (row, bar, inner):
             widget.bind("<Button-1>", click)
-            widget.bind("<Enter>",  lambda _e, r=row, i=inner:
-                (r.config(bg=BG3), i.config(bg=BG3)) if self._sel_app != name else None)
-            widget.bind("<Leave>",  lambda _e, r=row, i=inner, n2=name:
-                (r.config(bg=BG_SEL if self._sel_app==n2 else BG2),
-                 i.config(bg=BG_SEL if self._sel_app==n2 else BG2)))
+            widget.bind("<Enter>", on_enter)
+            widget.bind("<Leave>", on_leave)
         for child in inner.winfo_children():
             child.bind("<Button-1>", click)
+            child.bind("<Enter>", on_enter)
+            child.bind("<Leave>", on_leave)
 
         self._app_rows_map[name] = (row, bar, inner)
 

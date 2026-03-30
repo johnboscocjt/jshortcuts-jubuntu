@@ -9,6 +9,8 @@ Usage:
   jshortcuts del <id>     Delete a shortcut by ID
   jshortcuts cat <name>   Filter by category
   jshortcuts search <q>   Search shortcuts
+  jshortcuts open         Open data file in editor
+  jshortcuts github <cmd> Push or pull to GitHub
   jshortcuts gui          Launch the GUI window
   jshortcuts help         Show this help
 
@@ -19,8 +21,10 @@ import json
 import os
 import sys
 import shutil
+import subprocess
 
 DATA_FILE = os.path.expanduser("~/.jshortcuts.json")
+CONFIG_FILE = os.path.expanduser("~/.jshortcuts_github.json")
 DEFAULT_DATA = {"shortcuts": [], "next_id": 1}
 
 # ── ANSI Colors ──────────────────────────────────────────────────────────────
@@ -250,6 +254,110 @@ def delete_shortcut(sid):
     print()
 
 
+# ── GitHub & Open ────────────────────────────────────────────────────────────
+
+def open_data_file():
+    editors = ["code", "gedit", "mousepad", "kate", "pluma", "xed", "geany", "xdg-open", "nano"]
+    editor = next((cmd for cmd in editors if shutil.which(cmd)), None)
+    if not editor:
+        print(c("\n  ✗ No known editor found. Install VS Code or nano.", RED))
+        return
+    print(c(f"\n  Opening {DATA_FILE} with {editor}...", CYAN))
+    try:
+        subprocess.Popen([editor, DATA_FILE],
+                         stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL,
+                         stdin=subprocess.DEVNULL,
+                         start_new_session=True)
+    except Exception as e:
+        print(c(f"\n  ✗ Error opening file: {e}", RED))
+
+def github_sync(action):
+    config = {}
+    if os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, "r") as f:
+            config = json.load(f)
+    
+    url = config.get("repo_url", "")
+    if not url:
+        url = prompt("GitHub Repo URL (HTTPS/SSH)")
+        if not url:
+            print(c("\n  ✗ URL required.", RED))
+            return
+        config["repo_url"] = url
+        with open(CONFIG_FILE, "w") as f:
+            json.dump(config, f)
+            
+    sync_dir = os.path.expanduser("~/.jshortcuts-sync")
+    os.makedirs(sync_dir, exist_ok=True)
+    env = os.environ.copy()
+    
+    def prep():
+        shutil.copy(DATA_FILE, os.path.join(sync_dir, "jshortcuts.json"))
+        readme = os.path.join(sync_dir, "README.md")
+        if not os.path.exists(readme):
+            with open(readme, "w") as rf:
+                rf.write("# My jshortcuts\n\nManaged by jshortcuts.\n")
+        if not os.path.isdir(os.path.join(sync_dir, ".git")):
+            subprocess.check_call(["git", "init"], cwd=sync_dir, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.check_call(["git", "remote", "add", "origin", url], cwd=sync_dir, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            try:
+                subprocess.check_call(["git", "remote", "set-url", "origin", url], cwd=sync_dir, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except: pass
+
+    if action == "push":
+        msg = prompt("Commit Message", "Update shortcuts")
+        print(c("  Pushing...", YELLOW))
+        try:
+            prep()
+            subprocess.check_call(["git", "add", "."], cwd=sync_dir, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            diff = subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=sync_dir, env=env)
+            if diff.returncode == 0:
+                print(c("\n  ✓ Nothing changed since last push.", GREEN))
+                return
+            subprocess.check_call(["git", "commit", "-m", msg], cwd=sync_dir, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            pushed = False
+            for branch in ("main", "master"):
+                try:
+                    subprocess.check_call(["git", "push", "-u", "origin", branch], cwd=sync_dir, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    pushed = True
+                    break
+                except:
+                    continue
+            if pushed:
+                print(c(f"\n  ✓ Pushed successfully to {url}", GREEN))
+            else:
+                print(c("\n  ✗ Push failed. Check URL and access permissions.", RED))
+        except Exception as e:
+            print(c(f"\n  ✗ Push failed: {e}", RED))
+            
+    elif action == "pull":
+        print(c("  Pulling...", YELLOW))
+        try:
+            prep()
+            subprocess.check_call(["git", "fetch", "origin"], cwd=sync_dir, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            merged = False
+            for branch in ("main", "master"):
+                try:
+                    subprocess.check_call(["git", "reset", "--hard", f"origin/{branch}"], cwd=sync_dir, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    merged = True
+                    break
+                except:
+                    continue
+            if not merged:
+                print(c("\n  ✗ Pull failed to merge.", RED))
+                return
+            pf = os.path.join(sync_dir, "jshortcuts.json")
+            if os.path.exists(pf):
+                shutil.copy(pf, DATA_FILE)
+                print(c("\n  ✓ Pull complete. Data file updated.", GREEN))
+            else:
+                print(c("\n  ⚠ Pulled OK but jshortcuts.json not found in repo.", YELLOW))
+        except Exception as e:
+            print(c(f"\n  ✗ Pull failed: {e}", RED))
+
+
 # ── Launch GUI ───────────────────────────────────────────────────────────────
 
 def launch_gui():
@@ -277,6 +385,9 @@ def print_help():
         ("jshortcuts del <id>",   "Delete a shortcut by ID"),
         ("jshortcuts cat <name>", "Filter by category name"),
         ("jshortcuts search <q>", "Search across keys, description, notes"),
+        ("jshortcuts open",       "Open data file (choose editor)"),
+        ("jshortcuts github push","Push to GitHub"),
+        ("jshortcuts github pull","Pull from GitHub (fetch+hard reset)"),
         ("jshortcuts gui",        "Launch the GUI popup window"),
         ("jshortcuts help",       "Show this help message"),
     ]
@@ -321,6 +432,15 @@ def main():
             print(c("\n  Usage: jshortcuts search <query>\n", YELLOW))
         else:
             list_shortcuts(query=" ".join(args[1:]))
+
+    elif args[0] == "open":
+        open_data_file()
+        
+    elif args[0] == "github":
+        if len(args) < 2 or args[1] not in ("push", "pull"):
+            print(c("\n  Usage: jshortcuts github push | pull\n", YELLOW))
+        else:
+            github_sync(args[1])
 
     elif args[0] == "gui":
         launch_gui()
