@@ -107,64 +107,59 @@ def save_github_config(cfg):
 # =============================================================================
 
 class ScrollFrame(tk.Frame):
-    """A frame that scrolls vertically. Use .inner as the parent for widgets."""
+    """Vertically-scrollable frame. Use .inner as the parent for child widgets.
+    Scroll events are routed globally by JShortcutsApp._route_scroll().
+    """
 
     def __init__(self, parent, bg=BG, **kw):
         super().__init__(parent, bg=bg, **kw)
         self._bg = bg
 
-        self._canvas = tk.Canvas(self, bg=bg, highlightthickness=0)
-        self._sb = tk.Scrollbar(self, orient="vertical",
-                                command=self._canvas.yview,
-                                bg=BG2, troughcolor=BG2,
-                                activebackground=BG3)
-        self._canvas.configure(yscrollcommand=self._sb.set)
+        self._sb = tk.Scrollbar(self, orient="vertical", bg=BG2,
+                                troughcolor=BG2, activebackground=BG3)
+        self._canvas = tk.Canvas(self, bg=bg, highlightthickness=0,
+                                 yscrollcommand=self._sb.set)
+        self._sb.config(command=self._canvas.yview)
 
         self.inner = tk.Frame(self._canvas, bg=bg)
-        self._cw = self._canvas.create_window((0, 0), window=self.inner, anchor="nw")
+        self._cw   = self._canvas.create_window((0, 0), window=self.inner, anchor="nw")
 
+        # Always keep scrollbar visible so layout never shifts
+        self._sb.pack(side="right", fill="y")
         self._canvas.pack(side="left", fill="both", expand=True)
 
-        self.inner.bind("<Configure>", self._on_inner_configure)
-        self._canvas.bind("<Configure>", self._on_canvas_configure)
+        self.inner.bind("<Configure>",  self._on_inner)
+        self._canvas.bind("<Configure>", self._on_canvas)
 
-        # Bind wheel everywhere inside this widget
-        self._canvas.bind("<MouseWheel>", self._scroll)
-        self._canvas.bind("<Button-4>",   self._scroll)
-        self._canvas.bind("<Button-5>",   self._scroll)
-
-    def _on_inner_configure(self, _e=None):
+    # ------------------------------------------------------------------
+    def _on_inner(self, _e=None):
         self._canvas.configure(scrollregion=self._canvas.bbox("all"))
-        self._maybe_show_sb()
 
-    def _on_canvas_configure(self, e):
+    def _on_canvas(self, e):
         self._canvas.itemconfig(self._cw, width=e.width)
-        self._maybe_show_sb()
+        self._canvas.configure(scrollregion=self._canvas.bbox("all"))
 
-    def _maybe_show_sb(self):
-        ch = self._canvas.winfo_height()
-        ih = self.inner.winfo_reqheight()
-        if ih > ch and ch > 1:
-            self._sb.pack(side="right", fill="y", before=self._canvas)
-        else:
-            self._sb.pack_forget()
-
-    def _scroll(self, e):
-        if self.inner.winfo_reqheight() <= self._canvas.winfo_height():
-            return
-        # 3 units keeps pace with typical desktop scroll speed
+    # Called by the root-level scroll router
+    def scroll(self, e):
         if e.num == 4 or (hasattr(e, "delta") and e.delta > 0):
             self._canvas.yview_scroll(-3, "units")
         else:
             self._canvas.yview_scroll(3, "units")
 
+    def hit(self, x_root, y_root):
+        """Return True if (x_root, y_root) is inside our canvas and currently visible."""
+        try:
+            if not self.winfo_viewable():
+                return False
+            cx, cy = self._canvas.winfo_rootx(), self._canvas.winfo_rooty()
+            return (cx <= x_root <= cx + self._canvas.winfo_width() and
+                    cy <= y_root <= cy + self._canvas.winfo_height())
+        except Exception:
+            return False
+
+    # kept for backwards compat — no-op now
     def bind_scroll_recursive(self, widget):
-        """Propagate scroll events from all child widgets to this canvas."""
-        widget.bind("<MouseWheel>", self._scroll, add="+")
-        widget.bind("<Button-4>",   self._scroll, add="+")
-        widget.bind("<Button-5>",   self._scroll, add="+")
-        for child in widget.winfo_children():
-            self.bind_scroll_recursive(child)
+        pass
 
 
 # =============================================================================
@@ -272,6 +267,7 @@ class GitHubDialog(tk.Toplevel):
     def __init__(self, parent, on_pull_success=None):
         super().__init__(parent)
         self._on_pull_success = on_pull_success
+        self._pulled = False        # flag checked by caller after dialog closes
         self.title("GitHub Sync")
         self.configure(bg=BG)
         self.resizable(False, False)
@@ -486,7 +482,11 @@ class GitHubDialog(tk.Toplevel):
                     "Pull complete. Data file updated.\n"
                     "Loaded: {} shortcuts  |  {} app groups  |  {} my apps".format(sc, ap, ma))
                 self.status_lbl.config(fg=SUCCESS)
-                # Notify parent to refresh all tabs
+                
+                # Flag to notify parent to refresh tabs
+                self._pulled = True
+                
+                # Execute old callback if defined
                 if self._on_pull_success:
                     self._on_pull_success()
             else:
@@ -771,21 +771,27 @@ class JShortcutsApp(tk.Tk):
         self.minsize(700, 480)
 
         self._cat_colors   = {}
-        self._sel_id       = None           # selected shortcut id
-        self._sc_rows      = {}             # id -> (row,bar,tf)
+        self._sel_id       = None
+        self._sc_rows      = {}
         self._sel_cat      = tk.StringVar(value="All")
 
-        # Global search (top bar) — refreshes all tabs
-        self._search_v     = tk.StringVar()
-        self._search_v.trace_add("write", lambda *_: self._refresh_all())
+        # Global search — drives results panel
+        self._search_v = tk.StringVar()
+        self._search_v.trace_add("write", lambda *_: self._search_panel_update())
 
         # Per-tab search vars
-        self._sc_search_v  = tk.StringVar()   # Shortcuts tab
+        self._sc_search_v  = tk.StringVar()
         self._sc_search_v.trace_add("write", lambda *_: self._refresh_shortcuts())
-        self._app_search_v = tk.StringVar()   # Apps tab
+        self._app_search_v = tk.StringVar()
         self._app_search_v.trace_add("write", lambda *_: self._refresh_apps())
-        self._ma_search_v  = tk.StringVar()   # All My Apps tab
+        self._ma_search_v  = tk.StringVar()
         self._ma_search_v.trace_add("write", lambda *_: self._refresh_myapps())
+
+        # Root-level scroll router — all ScrollFrames register here
+        self._scroll_frames: list = []
+        self.bind_all("<MouseWheel>", self._route_scroll)
+        self.bind_all("<Button-4>",   self._route_scroll)
+        self.bind_all("<Button-5>",   self._route_scroll)
 
         self._sel_app      = None           # selected app name (Apps tab)
         self._sel_app_scid = None           # selected shortcut id in Apps tab
@@ -803,6 +809,24 @@ class JShortcutsApp(tk.Tk):
         sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
         self.geometry("960x660+{}+{}".format((sw-960)//2, (sh-660)//2))
         self.protocol("WM_DELETE_WINDOW", self.destroy)
+
+    # -------------------------------------------------------------------------
+    # Scroll router  (handles every ScrollFrame without per-widget bindings)
+    # -------------------------------------------------------------------------
+
+    def _reg_sf(self, sf: ScrollFrame) -> ScrollFrame:
+        """Register a ScrollFrame so the root router can reach it."""
+        self._scroll_frames.append(sf)
+        return sf
+
+    def _route_scroll(self, e):
+        for sf in self._scroll_frames:
+            try:
+                if sf.winfo_exists() and sf.hit(e.x_root, e.y_root):
+                    sf.scroll(e)
+                    return
+            except Exception:
+                continue
 
     # -------------------------------------------------------------------------
     # Styles
@@ -886,6 +910,137 @@ class JShortcutsApp(tk.Tk):
         self._build_cli_tab()
 
     # =========================================================================
+    # Global search results panel
+    # =========================================================================
+
+    def _search_panel_update(self):
+        """Rebuild the global search results panel whenever the query changes."""
+        q = self._search_v.get().strip().lower()
+        for w in self._spanel.winfo_children():
+            w.destroy()
+
+        if not q:
+            self._spanel.pack_forget()
+            return
+
+        data = load_data()
+
+        # -- collect results --------------------------------------------------
+        sc_hits = [
+            s for s in data.get("shortcuts", []) if
+            q in s["keys"].lower() or q in s["description"].lower() or
+            q in s.get("notes", "").lower() or q in s["category"].lower()
+        ]
+
+        app_sc_hits = []   # (app_name, shortcut)
+        for an, ad in data.get("apps", {}).items():
+            for sc in ad.get("shortcuts", []):
+                if (q in an.lower() or q in sc.get("keys", "").lower() or
+                        q in sc.get("description", "").lower()):
+                    app_sc_hits.append((an, sc))
+
+        ma_hits = [
+            (i, a) for i, a in enumerate(data.get("my_apps", []))
+            if q in a.get("name", "").lower() or q in a.get("description", "").lower()
+        ]
+
+        total = len(sc_hits) + len(app_sc_hits) + len(ma_hits)
+
+        # -- header row -------------------------------------------------------
+        hdr = tk.Frame(self._spanel, bg=BG3, height=30)
+        hdr.pack(fill="x"); hdr.pack_propagate(False)
+        tk.Label(hdr, text=f"  🔍  {total} result(s) for \"{q}\"",
+                 bg=BG3, fg=FG, font=FB, anchor="w").pack(side="left", padx=8, pady=5)
+        tk.Label(hdr, text="  Click a result to jump to it  ",
+                 bg=BG3, fg=FG_DIM, font=FT2, anchor="e").pack(side="right", pady=5)
+
+        if total == 0:
+            tk.Label(self._spanel, text="  No matches found across any tab.",
+                     bg=BG2, fg=FG_DIM, font=FS, anchor="w").pack(fill="x", padx=12, pady=6)
+            self._spanel.pack(side="top", fill="x", before=self._nb)
+            return
+
+        body = tk.Frame(self._spanel, bg=BG2)
+        body.pack(fill="x")
+
+        def _section(title, count, color):
+            if count == 0:
+                return
+            f = tk.Frame(body, bg=BG2)
+            f.pack(fill="x", padx=6, pady=(4, 0))
+            tk.Frame(f, bg=color, width=3, height=14).pack(side="left", padx=(0, 6))
+            tk.Label(f, text="{} — {} match(es)".format(title, count),
+                     bg=BG2, fg=color, font=FB, anchor="w").pack(side="left")
+
+        def _result_row(parent, label, sub, on_click, col):
+            r = tk.Frame(parent, bg=BG2, cursor="hand2")
+            r.pack(fill="x", padx=18, pady=1)
+            tk.Frame(r, bg=col, width=3).pack(side="left", fill="y")
+            inner = tk.Frame(r, bg=BG2)
+            inner.pack(side="left", fill="both", expand=True, padx=8, pady=3)
+            tk.Label(inner, text=label, bg=BG2, fg=FG, font=FN, anchor="w").pack(fill="x")
+            if sub:
+                tk.Label(inner, text=sub, bg=BG2, fg=FG_DIM, font=FS, anchor="w").pack(fill="x")
+            for w in (r, inner):
+                w.bind("<Button-1>", lambda _e, fn=on_click: fn())
+                w.bind("<Enter>",   lambda _e, rr=r, ii=inner: (rr.config(bg=BG3), ii.config(bg=BG3)))
+                w.bind("<Leave>",   lambda _e, rr=r, ii=inner: (rr.config(bg=BG2), ii.config(bg=BG2)))
+            for child in inner.winfo_children():
+                child.bind("<Button-1>", lambda _e, fn=on_click: fn())
+
+        # -- Shortcuts section ------------------------------------------------
+        SC_COL = CAT_COLORS[0]
+        _section("Shortcuts", len(sc_hits), SC_COL)
+        for s in sc_hits[:6]:
+            sid = s["id"]
+            def _go_sc(i=sid):
+                self._search_v.set("")
+                self._nb.select(self._tab_sc)
+                self._sel_cat.set("All")
+                self._sc_search_v.set("")
+                self._refresh_shortcuts()
+                self.after(50, lambda: self._sel_sc_row(i))
+            _result_row(body,
+                        "{} — {}".format(s["keys"], s["description"]),
+                        "[Shortcuts › {}]".format(s["category"]),
+                        _go_sc, SC_COL)
+        if len(sc_hits) > 6:
+            tk.Label(body, text="  … and {} more in Shortcuts tab".format(len(sc_hits)-6),
+                     bg=BG2, fg=FG_DIM, font=FT2, anchor="w").pack(fill="x", padx=20)
+
+        # -- Apps section -----------------------------------------------------
+        APP_COL = CAT_COLORS[3]
+        _section("Apps", len(app_sc_hits), APP_COL)
+        for app_name, sc in app_sc_hits[:6]:
+            def _go_app(an=app_name):
+                self._search_v.set("")
+                self._nb.select(self._tab_ap)
+                self.after(50, lambda: self._select_app(an))
+            _result_row(body,
+                        "{} — {}".format(sc["keys"], sc["description"]),
+                        "[Apps › {}]".format(app_name),
+                        _go_app, APP_COL)
+        if len(app_sc_hits) > 6:
+            tk.Label(body, text="  … and {} more in Apps tab".format(len(app_sc_hits)-6),
+                     bg=BG2, fg=FG_DIM, font=FT2, anchor="w").pack(fill="x", padx=20)
+
+        # -- My Apps section --------------------------------------------------
+        MA_COL = CAT_COLORS[4]
+        _section("All My Apps", len(ma_hits), MA_COL)
+        for idx, app in ma_hits[:4]:
+            def _go_ma(i=idx):
+                self._search_v.set("")
+                self._nb.select(self._tab_ma)
+                self.after(50, lambda: self._sel_myapp(i))
+            _result_row(body,
+                        app.get("name", "(unnamed)"),
+                        "[All My Apps] — {}".format(app.get("description","")),
+                        _go_ma, MA_COL)
+
+        tk.Frame(self._spanel, bg=BG3, height=1).pack(fill="x")
+        self._spanel.pack(side="top", fill="x", before=self._nb)
+
+    # =========================================================================
     # TAB 1: Shortcuts
     # =========================================================================
 
@@ -939,7 +1094,7 @@ class JShortcutsApp(tk.Tk):
                   padx=4, pady=2, activebackground=BG3).pack(side="left")
 
         # Scrollable list using ScrollFrame
-        self._sc_sf = ScrollFrame(right, bg=BG)
+        self._sc_sf = self._reg_sf(ScrollFrame(right, bg=BG))
         self._sc_sf.pack(side="top", fill="both", expand=True)
 
     # -------------------------------------------------------------------------
@@ -1172,7 +1327,7 @@ class JShortcutsApp(tk.Tk):
                   activebackground=BG3, activeforeground=FG
                   ).pack(side="right")
 
-        self._app_list_sf = ScrollFrame(left, bg=BG2)
+        self._app_list_sf = self._reg_sf(ScrollFrame(left, bg=BG2))
         self._app_list_sf.pack(fill="both", expand=True)
         self._app_list_frame = self._app_list_sf.inner
 
@@ -1215,7 +1370,7 @@ class JShortcutsApp(tk.Tk):
                   bg=BG2, fg=FG_DIM, font=FT2, relief="flat", cursor="hand2",
                   padx=4, pady=2, activebackground=BG3).pack(side="left")
 
-        self._app_sc_sf = ScrollFrame(right, bg=BG)
+        self._app_sc_sf = self._reg_sf(ScrollFrame(right, bg=BG))
         self._app_sc_sf.pack(side="top", fill="both", expand=True)
 
     # -------------------------------------------------------------------------
@@ -1515,7 +1670,7 @@ class JShortcutsApp(tk.Tk):
                   bg=BG2, fg=FG_DIM, font=FT2, relief="flat", cursor="hand2",
                   padx=4, pady=2, activebackground=BG3).pack(side="left")
 
-        self._ma_sf = ScrollFrame(t, bg=BG)
+        self._ma_sf = self._reg_sf(ScrollFrame(t, bg=BG))
         self._ma_sf.pack(side="top", fill="both", expand=True)
 
     def _refresh_myapps(self):
@@ -1680,7 +1835,7 @@ class JShortcutsApp(tk.Tk):
     # =========================================================================
 
     def _build_cli_tab(self):
-        sf = ScrollFrame(self._tab_cli, bg=BG)
+        sf = self._reg_sf(ScrollFrame(self._tab_cli, bg=BG))
         sf.pack(fill="both", expand=True)
         inn = sf.inner
 
@@ -1764,8 +1919,11 @@ class JShortcutsApp(tk.Tk):
         self.wait_window(dlg)
 
     def _open_github(self):
-        dlg = GitHubDialog(self, on_pull_success=self._refresh_all)
+        dlg = GitHubDialog(self)
         self.wait_window(dlg)
+        # Refresh AFTER dialog is fully closed so grab_set no longer blocks UI
+        if getattr(dlg, "_pulled", False):
+            self._refresh_all()
 
     def _open_url(self, url):
         if shutil.which("xdg-open"):

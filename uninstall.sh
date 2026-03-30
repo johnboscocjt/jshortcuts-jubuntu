@@ -120,10 +120,31 @@ for RC in "${HOME}/.bashrc" "${HOME}/.zshrc" "${HOME}/.profile"; do
     fi
 done
 
+# -- Delete Cloned Repo --------------------------------------------------------
+echo ""
+echo -e "  ${BOLD}Downloaded Repository Folder${RESET}"
+REPO_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+# Safety check: make sure this is actually the jshortcuts repo
+if [ -f "${REPO_DIR}/jshortcuts" ] && [ -f "${REPO_DIR}/install.sh" ] && [[ "${REPO_DIR}" != "${HOME}" ]]; then
+    echo -e "  ${YELLOW}Found the repository folder where you ran this installer:${RESET}"
+    echo -e "  ${REPO_DIR}"
+    echo ""
+    read -rp "  Delete this folder to fully clean up your computer? (y/N): " del_repo
+    if [ "${del_repo,,}" = "y" ]; then
+        # Cd out so we don't try to delete a folder we are actively inside
+        cd "${HOME}" || true
+        rm -rf "${REPO_DIR}"
+        ok "Deleted ${REPO_DIR}"
+    else
+        info "Kept ${REPO_DIR}"
+    fi
+fi
+
 # -- Done ----------------------------------------------------------------------
 echo ""
 echo -e "  ${DIM}----------------------------------------------${RESET}"
-echo -e "  ${BOLD}${GREEN}jshortcuts has been uninstalled.${RESET}"
+echo -e "  ${BOLD}${GREEN}jshortcuts has been completely uninstalled.${RESET}"
 echo ""
 echo -e "  To reinstall later:"
 echo -e "  ${CYAN}git clone https://github.com/johnboscocjt/jshortcuts-jubuntu.git${RESET}"
