@@ -8,6 +8,7 @@ set -euo pipefail
 INSTALL_DIR="${HOME}/bin"
 DATA_FILE="${HOME}/.jshortcuts.json"
 GITHUB_CFG="${HOME}/.jshortcuts_github.json"
+SYNC_DIR="${HOME}/.jshortcuts-sync"
 DESKTOP_FILE="${HOME}/.local/share/applications/jshortcuts.desktop"
 
 RESET='\033[0m'
@@ -63,6 +64,34 @@ if [ -f "${GITHUB_CFG}" ]; then
     fi
 else
     skip "${GITHUB_CFG}"
+fi
+
+# -- GitHub sync repository ----------------------------------------------------
+echo ""
+echo -e "  ${BOLD}GitHub sync directory${RESET}"
+if [ -d "${SYNC_DIR}" ]; then
+    REMOTE_URL="(none)"
+    if command -v git &>/dev/null && [ -d "${SYNC_DIR}/.git" ]; then
+        REMOTE_URL=$(git -C "${SYNC_DIR}" remote get-url origin 2>/dev/null || echo "(not set)")
+    fi
+    DIR_SIZE=$(du -sh "${SYNC_DIR}" 2>/dev/null | cut -f1)
+    echo ""
+    echo -e "  ${YELLOW}Sync directory found:${RESET}  ${SYNC_DIR}"
+    echo -e "  ${CYAN}Remote URL:${RESET}            ${REMOTE_URL}"
+    echo -e "  ${CYAN}Size:${RESET}                  ${DIR_SIZE}"
+    echo ""
+    echo -e "  ${YELLOW}Warning:${RESET} This will permanently delete the local copy of"
+    echo -e "  your sync repo. Your ${BOLD}remote${RESET} GitHub repo will NOT be affected."
+    echo ""
+    read -rp "  Delete local sync repo ${SYNC_DIR}? (y/N): " sr
+    if [ "${sr,,}" = "y" ]; then
+        rm -rf "${SYNC_DIR}"
+        ok "Deleted ${SYNC_DIR}"
+    else
+        info "Kept ${SYNC_DIR}"
+    fi
+else
+    skip "${SYNC_DIR}"
 fi
 
 # -- Shortcut data file --------------------------------------------------------
