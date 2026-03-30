@@ -152,10 +152,11 @@ class ScrollFrame(tk.Frame):
     def _scroll(self, e):
         if self.inner.winfo_reqheight() <= self._canvas.winfo_height():
             return
+        # 3 units keeps pace with typical desktop scroll speed
         if e.num == 4 or (hasattr(e, "delta") and e.delta > 0):
-            self._canvas.yview_scroll(-1, "units")
+            self._canvas.yview_scroll(-3, "units")
         else:
-            self._canvas.yview_scroll(1, "units")
+            self._canvas.yview_scroll(3, "units")
 
     def bind_scroll_recursive(self, widget):
         """Propagate scroll events from all child widgets to this canvas."""
@@ -447,25 +448,37 @@ class GitHubDialog(tk.Toplevel):
         env = os.environ.copy()
         try:
             self._prep(sd, url, env)
+            # Fetch - show progress to confirm it is not stuck
+            self.status_v.set("Fetching from remote\n(may take a moment the first time)...")
+            self.update()
             subprocess.check_call(["git", "fetch", "origin"], cwd=sd, env=env)
-            merged = False
-            for branch in ("main", "master"):
-                try:
-                    subprocess.check_call(
-                        ["git", "reset", "--hard", "origin/{}".format(branch)],
-                        cwd=sd, env=env)
-                    merged = True
-                    break
-                except subprocess.CalledProcessError:
-                    continue
-            if not merged:
-                self.status_v.set("Merge failed. Resolve conflicts in:\n{}".format(sd))
+            # Use FETCH_HEAD so we never need to guess branch name
+            self.status_v.set("Applying remote changes...")
+            self.update()
+            try:
+                subprocess.check_call(
+                    ["git", "reset", "--hard", "FETCH_HEAD"],
+                    cwd=sd, env=env)
+            except subprocess.CalledProcessError:
+                self.status_v.set("Reset failed.\nCheck that the remote repo is not empty.")
                 self.status_lbl.config(fg=DANGER)
                 return
             pf = os.path.join(sd, "jshortcuts.json")
             if os.path.exists(pf):
+                # Validate JSON before overwriting local data
+                try:
+                    with open(pf) as _f:
+                        pulled = json.load(_f)
+                except (json.JSONDecodeError, OSError) as je:
+                    self.status_v.set(
+                        "Pulled OK but jshortcuts.json in repo is invalid JSON:\n{}".format(je))
+                    self.status_lbl.config(fg=DANGER)
+                    return
                 shutil.copy(pf, DATA_FILE)
-                data = load_data()
+                try:
+                    data = load_data()
+                except Exception:
+                    data = pulled
                 sc  = len(data.get("shortcuts", []))
                 ap  = len(data.get("apps", {}))
                 ma  = len(data.get("my_apps", []))
@@ -761,8 +774,18 @@ class JShortcutsApp(tk.Tk):
         self._sel_id       = None           # selected shortcut id
         self._sc_rows      = {}             # id -> (row,bar,tf)
         self._sel_cat      = tk.StringVar(value="All")
+
+        # Global search (top bar) — refreshes all tabs
         self._search_v     = tk.StringVar()
-        self._search_v.trace_add("write", lambda *_: self._refresh_shortcuts())
+        self._search_v.trace_add("write", lambda *_: self._refresh_all())
+
+        # Per-tab search vars
+        self._sc_search_v  = tk.StringVar()   # Shortcuts tab
+        self._sc_search_v.trace_add("write", lambda *_: self._refresh_shortcuts())
+        self._app_search_v = tk.StringVar()   # Apps tab
+        self._app_search_v.trace_add("write", lambda *_: self._refresh_apps())
+        self._ma_search_v  = tk.StringVar()   # All My Apps tab
+        self._ma_search_v.trace_add("write", lambda *_: self._refresh_myapps())
 
         self._sel_app      = None           # selected app name (Apps tab)
         self._sel_app_scid = None           # selected shortcut id in Apps tab
@@ -834,10 +857,10 @@ class JShortcutsApp(tk.Tk):
                       activebackground=ACCENT2, activeforeground=FG
                       ).pack(side="right", padx=(4,4), pady=12)
 
-        # Search
+        # Global search
         sf = tk.Frame(top, bg=BG3, padx=8, pady=4)
         sf.pack(side="right", padx=8, pady=10)
-        tk.Label(sf, text="search:", bg=BG3, fg=FG_DIM, font=FS).pack(side="left")
+        tk.Label(sf, text="🔍 global:", bg=BG3, fg=FG_DIM, font=FS).pack(side="left")
         tk.Entry(sf, textvariable=self._search_v,
                  bg=BG3, fg=FG, font=FN, relief="flat", width=18,
                  insertbackground=ACCENT).pack(side="left", padx=(4,0))
@@ -901,6 +924,20 @@ class JShortcutsApp(tk.Tk):
                       activebackground=BG3, activeforeground=FG
                       ).pack(side="right", padx=3)
 
+        # Per-tab search bar
+        sch = tk.Frame(right, bg=BG2, padx=10, pady=5)
+        sch.pack(side="top", fill="x")
+        tk.Label(sch, text="🔍", bg=BG2, fg=FG_DIM, font=FS).pack(side="left")
+        tk.Entry(sch, textvariable=self._sc_search_v,
+                 bg=BG3, fg=FG, font=FN, relief="flat", width=28,
+                 insertbackground=ACCENT,
+                 highlightthickness=1, highlightbackground=BG3, highlightcolor=ACCENT
+                 ).pack(side="left", padx=(6,0), ipady=4)
+        tk.Label(sch, text="  filter this tab", bg=BG2, fg=FG_DIM, font=FT2).pack(side="left", padx=4)
+        tk.Button(sch, text="✕", command=lambda: self._sc_search_v.set(""),
+                  bg=BG2, fg=FG_DIM, font=FT2, relief="flat", cursor="hand2",
+                  padx=4, pady=2, activebackground=BG3).pack(side="left")
+
         # Scrollable list using ScrollFrame
         self._sc_sf = ScrollFrame(right, bg=BG)
         self._sc_sf.pack(side="top", fill="both", expand=True)
@@ -945,16 +982,19 @@ class JShortcutsApp(tk.Tk):
         self._build_sidebar(cats)
 
         sel  = self._sel_cat.get()
-        qry  = self._search_v.get().strip().lower()
+        # Combine global + per-tab search
+        gqry = self._search_v.get().strip().lower()
+        tqry = self._sc_search_v.get().strip().lower()
         filt = scs
         if sel != "All":
             filt = [s for s in filt if s["category"] == sel]
-        if qry:
-            filt = [s for s in filt if
-                    qry in s["keys"].lower() or
-                    qry in s["description"].lower() or
-                    qry in s.get("notes","").lower() or
-                    qry in s["category"].lower()]
+        for qry in (gqry, tqry):
+            if qry:
+                filt = [s for s in filt if
+                        qry in s["keys"].lower() or
+                        qry in s["description"].lower() or
+                        qry in s.get("notes","").lower() or
+                        qry in s["category"].lower()]
 
         self._sc_count.config(text="{} shortcut(s)".format(len(filt)))
         self._render_shortcuts(filt)
@@ -1106,8 +1146,21 @@ class JShortcutsApp(tk.Tk):
         tk.Label(left, text="APPS", bg=BG2, fg=FG_DIM, font=FT2, anchor="w"
                  ).pack(fill="x", padx=12, pady=(14,4))
 
+        # App list search
+        asf = tk.Frame(left, bg=BG2, padx=6, pady=4)
+        asf.pack(fill="x")
+        tk.Label(asf, text="🔍", bg=BG2, fg=FG_DIM, font=FS).pack(side="left")
+        tk.Entry(asf, textvariable=self._app_search_v,
+                 bg=BG3, fg=FG, font=FS, relief="flat",
+                 insertbackground=ACCENT,
+                 highlightthickness=1, highlightbackground=BG3, highlightcolor=ACCENT
+                 ).pack(side="left", fill="x", expand=True, padx=(4,0), ipady=3)
+        tk.Button(asf, text="✕", command=lambda: self._app_search_v.set(""),
+                  bg=BG2, fg=FG_DIM, font=FT2, relief="flat", cursor="hand2",
+                  padx=3, pady=1, activebackground=BG3).pack(side="left", padx=(2,0))
+
         atb = tk.Frame(left, bg=BG2)
-        atb.pack(fill="x", padx=8, pady=(0,6))
+        atb.pack(fill="x", padx=8, pady=(4,6))
         tk.Button(atb, text="+ App", command=self._add_app,
                   bg=SUCCESS, fg="white", font=FS, relief="flat",
                   padx=8, pady=3, cursor="hand2",
@@ -1119,10 +1172,11 @@ class JShortcutsApp(tk.Tk):
                   activebackground=BG3, activeforeground=FG
                   ).pack(side="right")
 
-        self._app_list_frame = tk.Frame(left, bg=BG2)
-        self._app_list_frame.pack(fill="both", expand=True)
+        self._app_list_sf = ScrollFrame(left, bg=BG2)
+        self._app_list_sf.pack(fill="both", expand=True)
+        self._app_list_frame = self._app_list_sf.inner
 
-        tk.Frame(t, bg=BG3, width=1).pack(side="left", fill="y")
+        tk.Frame(t, bg=BG3, width=1).pack(side="left", fill="y")  # divider
 
         # Right panel
         right = tk.Frame(t, bg=BG)
@@ -1144,6 +1198,23 @@ class JShortcutsApp(tk.Tk):
                       activebackground=BG3, activeforeground=FG
                       ).pack(side="right", padx=3)
 
+        # Per-tab shortcut search inside Apps right panel
+        asch = tk.Frame(right, bg=BG2, padx=10, pady=5)
+        asch.pack(side="top", fill="x")
+        self._app_sc_search_v = tk.StringVar()
+        self._app_sc_search_v.trace_add("write",
+            lambda *_: self._render_app_shortcuts(self._sel_app) if self._sel_app else None)
+        tk.Label(asch, text="🔍", bg=BG2, fg=FG_DIM, font=FS).pack(side="left")
+        tk.Entry(asch, textvariable=self._app_sc_search_v,
+                 bg=BG3, fg=FG, font=FN, relief="flat", width=24,
+                 insertbackground=ACCENT,
+                 highlightthickness=1, highlightbackground=BG3, highlightcolor=ACCENT
+                 ).pack(side="left", padx=(6,0), ipady=4)
+        tk.Label(asch, text="  filter shortcuts", bg=BG2, fg=FG_DIM, font=FT2).pack(side="left", padx=4)
+        tk.Button(asch, text="✕", command=lambda: self._app_sc_search_v.set(""),
+                  bg=BG2, fg=FG_DIM, font=FT2, relief="flat", cursor="hand2",
+                  padx=4, pady=2, activebackground=BG3).pack(side="left")
+
         self._app_sc_sf = ScrollFrame(right, bg=BG)
         self._app_sc_sf.pack(side="top", fill="both", expand=True)
 
@@ -1156,14 +1227,27 @@ class JShortcutsApp(tk.Tk):
             w.destroy()
         self._app_rows_map = {}
         apps = load_data().get("apps", {})
-        if not apps:
+        gqry = self._search_v.get().strip().lower()
+        aqry = self._app_search_v.get().strip().lower()
+        names = sorted(apps.keys())
+        if gqry:
+            names = [n for n in names if gqry in n.lower()]
+        if aqry:
+            names = [n for n in names if aqry in n.lower()]
+        if not names:
+            tk.Label(self._app_list_frame,
+                     text="\nNo apps found.",
+                     bg=BG2, fg=FG_DIM, font=FS, justify="left"
+                     ).pack(padx=12, pady=10)
+        elif not apps:
             tk.Label(self._app_list_frame,
                      text="\nNo apps yet.\nClick '+ App' to add.",
                      bg=BG2, fg=FG_DIM, font=FS, justify="left"
                      ).pack(padx=12, pady=10)
         else:
-            for name in sorted(apps.keys()):
+            for name in names:
                 self._make_app_row(name, apps[name])
+        self._app_list_sf.bind_scroll_recursive(self._app_list_frame)
         if self._sel_app:
             self._render_app_shortcuts(self._sel_app)
 
@@ -1230,9 +1314,17 @@ class JShortcutsApp(tk.Tk):
         self._sel_app_scid = None
         apps = load_data().get("apps", {})
         scs  = apps.get(name, {}).get("shortcuts", [])
+        gqry = self._search_v.get().strip().lower()
+        sqry = getattr(self, "_app_sc_search_v", tk.StringVar()).get().strip().lower()
+        for qry in (gqry, sqry):
+            if qry:
+                scs = [s for s in scs if
+                       qry in s.get("keys","").lower() or
+                       qry in s.get("description","").lower() or
+                       qry in s.get("notes","").lower()]
         if not scs:
             tk.Label(self._app_sc_sf.inner,
-                     text="\n  No shortcuts for this app.\n  Click '+ Shortcut' to add one.",
+                     text="\n  No shortcuts found.\n  Click '+ Shortcut' to add one.",
                      bg=BG, fg=FG_DIM, font=FN, justify="left"
                      ).pack(padx=24, pady=30)
             return
@@ -1409,6 +1501,20 @@ class JShortcutsApp(tk.Tk):
                       activebackground=BG3, activeforeground=FG
                       ).pack(side="right", padx=3)
 
+        # Per-tab search
+        msch = tk.Frame(t, bg=BG2, padx=10, pady=5)
+        msch.pack(side="top", fill="x")
+        tk.Label(msch, text="🔍", bg=BG2, fg=FG_DIM, font=FS).pack(side="left")
+        tk.Entry(msch, textvariable=self._ma_search_v,
+                 bg=BG3, fg=FG, font=FN, relief="flat", width=28,
+                 insertbackground=ACCENT,
+                 highlightthickness=1, highlightbackground=BG3, highlightcolor=ACCENT
+                 ).pack(side="left", padx=(6,0), ipady=4)
+        tk.Label(msch, text="  search app name / description", bg=BG2, fg=FG_DIM, font=FT2).pack(side="left", padx=4)
+        tk.Button(msch, text="✕", command=lambda: self._ma_search_v.set(""),
+                  bg=BG2, fg=FG_DIM, font=FT2, relief="flat", cursor="hand2",
+                  padx=4, pady=2, activebackground=BG3).pack(side="left")
+
         self._ma_sf = ScrollFrame(t, bg=BG)
         self._ma_sf.pack(side="top", fill="both", expand=True)
 
@@ -1420,14 +1526,24 @@ class JShortcutsApp(tk.Tk):
         data = load_data()
         apps = data.get("my_apps", [])
 
-        if not apps:
+        gqry = self._search_v.get().strip().lower()
+        mqry = self._ma_search_v.get().strip().lower()
+
+        def _matches(a):
+            text = (a.get("name","") + a.get("description","")).lower()
+            return (not gqry or gqry in text) and (not mqry or mqry in text)
+
+        filtered = [(i, a) for i, a in enumerate(apps) if _matches(a)]
+
+        if not filtered:
             tk.Label(self._ma_sf.inner,
-                     text="\n  No apps yet.\n  Click '+ App' to add an entry to your app directory.",
+                     text="\n  No apps found." if (gqry or mqry) else
+                          "\n  No apps yet.\n  Click '+ App' to add an entry to your app directory.",
                      bg=BG, fg=FG_DIM, font=FN, justify="left"
                      ).pack(padx=24, pady=40)
             return
 
-        for idx, app in enumerate(apps):
+        for idx, app in filtered:
             self._make_myapp_card(idx, app)
 
     def _make_myapp_card(self, idx, app):
