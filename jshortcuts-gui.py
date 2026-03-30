@@ -141,6 +141,9 @@ class ScrollFrame(tk.Frame):
 
     # Called by the root-level scroll router
     def scroll(self, e):
+        # Prevent scrolling if all content is already visible
+        if self.inner.winfo_reqheight() <= self._canvas.winfo_height():
+            return
         if e.num == 4 or (hasattr(e, "delta") and e.delta > 0):
             self._canvas.yview_scroll(-3, "units")
         else:
@@ -775,10 +778,6 @@ class JShortcutsApp(tk.Tk):
         self._sc_rows      = {}
         self._sel_cat      = tk.StringVar(value="All")
 
-        # Global search — drives results panel
-        self._search_v = tk.StringVar()
-        self._search_v.trace_add("write", lambda *_: self._search_panel_update())
-
         # Per-tab search vars
         self._sc_search_v  = tk.StringVar()
         self._sc_search_v.trace_add("write", lambda *_: self._refresh_shortcuts())
@@ -881,14 +880,6 @@ class JShortcutsApp(tk.Tk):
                       activebackground=ACCENT2, activeforeground=FG
                       ).pack(side="right", padx=(4,4), pady=12)
 
-        # Global search
-        sf = tk.Frame(top, bg=BG3, padx=8, pady=4)
-        sf.pack(side="right", padx=8, pady=10)
-        tk.Label(sf, text="🔍 global:", bg=BG3, fg=FG_DIM, font=FS).pack(side="left")
-        tk.Entry(sf, textvariable=self._search_v,
-                 bg=BG3, fg=FG, font=FN, relief="flat", width=18,
-                 insertbackground=ACCENT).pack(side="left", padx=(4,0))
-
         # Notebook
         self._nb = ttk.Notebook(self, style="Dark.TNotebook")
         self._nb.pack(side="top", fill="both", expand=True)
@@ -908,137 +899,6 @@ class JShortcutsApp(tk.Tk):
         self._tab_cli = tk.Frame(self._nb, bg=BG)
         self._nb.add(self._tab_cli, text="  CLI Reference  ")
         self._build_cli_tab()
-
-    # =========================================================================
-    # Global search results panel
-    # =========================================================================
-
-    def _search_panel_update(self):
-        """Rebuild the global search results panel whenever the query changes."""
-        q = self._search_v.get().strip().lower()
-        for w in self._spanel.winfo_children():
-            w.destroy()
-
-        if not q:
-            self._spanel.pack_forget()
-            return
-
-        data = load_data()
-
-        # -- collect results --------------------------------------------------
-        sc_hits = [
-            s for s in data.get("shortcuts", []) if
-            q in s["keys"].lower() or q in s["description"].lower() or
-            q in s.get("notes", "").lower() or q in s["category"].lower()
-        ]
-
-        app_sc_hits = []   # (app_name, shortcut)
-        for an, ad in data.get("apps", {}).items():
-            for sc in ad.get("shortcuts", []):
-                if (q in an.lower() or q in sc.get("keys", "").lower() or
-                        q in sc.get("description", "").lower()):
-                    app_sc_hits.append((an, sc))
-
-        ma_hits = [
-            (i, a) for i, a in enumerate(data.get("my_apps", []))
-            if q in a.get("name", "").lower() or q in a.get("description", "").lower()
-        ]
-
-        total = len(sc_hits) + len(app_sc_hits) + len(ma_hits)
-
-        # -- header row -------------------------------------------------------
-        hdr = tk.Frame(self._spanel, bg=BG3, height=30)
-        hdr.pack(fill="x"); hdr.pack_propagate(False)
-        tk.Label(hdr, text=f"  🔍  {total} result(s) for \"{q}\"",
-                 bg=BG3, fg=FG, font=FB, anchor="w").pack(side="left", padx=8, pady=5)
-        tk.Label(hdr, text="  Click a result to jump to it  ",
-                 bg=BG3, fg=FG_DIM, font=FT2, anchor="e").pack(side="right", pady=5)
-
-        if total == 0:
-            tk.Label(self._spanel, text="  No matches found across any tab.",
-                     bg=BG2, fg=FG_DIM, font=FS, anchor="w").pack(fill="x", padx=12, pady=6)
-            self._spanel.pack(side="top", fill="x", before=self._nb)
-            return
-
-        body = tk.Frame(self._spanel, bg=BG2)
-        body.pack(fill="x")
-
-        def _section(title, count, color):
-            if count == 0:
-                return
-            f = tk.Frame(body, bg=BG2)
-            f.pack(fill="x", padx=6, pady=(4, 0))
-            tk.Frame(f, bg=color, width=3, height=14).pack(side="left", padx=(0, 6))
-            tk.Label(f, text="{} — {} match(es)".format(title, count),
-                     bg=BG2, fg=color, font=FB, anchor="w").pack(side="left")
-
-        def _result_row(parent, label, sub, on_click, col):
-            r = tk.Frame(parent, bg=BG2, cursor="hand2")
-            r.pack(fill="x", padx=18, pady=1)
-            tk.Frame(r, bg=col, width=3).pack(side="left", fill="y")
-            inner = tk.Frame(r, bg=BG2)
-            inner.pack(side="left", fill="both", expand=True, padx=8, pady=3)
-            tk.Label(inner, text=label, bg=BG2, fg=FG, font=FN, anchor="w").pack(fill="x")
-            if sub:
-                tk.Label(inner, text=sub, bg=BG2, fg=FG_DIM, font=FS, anchor="w").pack(fill="x")
-            for w in (r, inner):
-                w.bind("<Button-1>", lambda _e, fn=on_click: fn())
-                w.bind("<Enter>",   lambda _e, rr=r, ii=inner: (rr.config(bg=BG3), ii.config(bg=BG3)))
-                w.bind("<Leave>",   lambda _e, rr=r, ii=inner: (rr.config(bg=BG2), ii.config(bg=BG2)))
-            for child in inner.winfo_children():
-                child.bind("<Button-1>", lambda _e, fn=on_click: fn())
-
-        # -- Shortcuts section ------------------------------------------------
-        SC_COL = CAT_COLORS[0]
-        _section("Shortcuts", len(sc_hits), SC_COL)
-        for s in sc_hits[:6]:
-            sid = s["id"]
-            def _go_sc(i=sid):
-                self._search_v.set("")
-                self._nb.select(self._tab_sc)
-                self._sel_cat.set("All")
-                self._sc_search_v.set("")
-                self._refresh_shortcuts()
-                self.after(50, lambda: self._sel_sc_row(i))
-            _result_row(body,
-                        "{} — {}".format(s["keys"], s["description"]),
-                        "[Shortcuts › {}]".format(s["category"]),
-                        _go_sc, SC_COL)
-        if len(sc_hits) > 6:
-            tk.Label(body, text="  … and {} more in Shortcuts tab".format(len(sc_hits)-6),
-                     bg=BG2, fg=FG_DIM, font=FT2, anchor="w").pack(fill="x", padx=20)
-
-        # -- Apps section -----------------------------------------------------
-        APP_COL = CAT_COLORS[3]
-        _section("Apps", len(app_sc_hits), APP_COL)
-        for app_name, sc in app_sc_hits[:6]:
-            def _go_app(an=app_name):
-                self._search_v.set("")
-                self._nb.select(self._tab_ap)
-                self.after(50, lambda: self._select_app(an))
-            _result_row(body,
-                        "{} — {}".format(sc["keys"], sc["description"]),
-                        "[Apps › {}]".format(app_name),
-                        _go_app, APP_COL)
-        if len(app_sc_hits) > 6:
-            tk.Label(body, text="  … and {} more in Apps tab".format(len(app_sc_hits)-6),
-                     bg=BG2, fg=FG_DIM, font=FT2, anchor="w").pack(fill="x", padx=20)
-
-        # -- My Apps section --------------------------------------------------
-        MA_COL = CAT_COLORS[4]
-        _section("All My Apps", len(ma_hits), MA_COL)
-        for idx, app in ma_hits[:4]:
-            def _go_ma(i=idx):
-                self._search_v.set("")
-                self._nb.select(self._tab_ma)
-                self.after(50, lambda: self._sel_myapp(i))
-            _result_row(body,
-                        app.get("name", "(unnamed)"),
-                        "[All My Apps] — {}".format(app.get("description","")),
-                        _go_ma, MA_COL)
-
-        tk.Frame(self._spanel, bg=BG3, height=1).pack(fill="x")
-        self._spanel.pack(side="top", fill="x", before=self._nb)
 
     # =========================================================================
     # TAB 1: Shortcuts
@@ -1137,19 +997,16 @@ class JShortcutsApp(tk.Tk):
         self._build_sidebar(cats)
 
         sel  = self._sel_cat.get()
-        # Combine global + per-tab search
-        gqry = self._search_v.get().strip().lower()
         tqry = self._sc_search_v.get().strip().lower()
         filt = scs
         if sel != "All":
             filt = [s for s in filt if s["category"] == sel]
-        for qry in (gqry, tqry):
-            if qry:
-                filt = [s for s in filt if
-                        qry in s["keys"].lower() or
-                        qry in s["description"].lower() or
-                        qry in s.get("notes","").lower() or
-                        qry in s["category"].lower()]
+        if tqry:
+            filt = [s for s in filt if
+                    tqry in s["keys"].lower() or
+                    tqry in s["description"].lower() or
+                    tqry in s.get("notes","").lower() or
+                    tqry in s["category"].lower()]
 
         self._sc_count.config(text="{} shortcut(s)".format(len(filt)))
         self._render_shortcuts(filt)
@@ -1382,11 +1239,8 @@ class JShortcutsApp(tk.Tk):
             w.destroy()
         self._app_rows_map = {}
         apps = load_data().get("apps", {})
-        gqry = self._search_v.get().strip().lower()
         aqry = self._app_search_v.get().strip().lower()
         names = sorted(apps.keys())
-        if gqry:
-            names = [n for n in names if gqry in n.lower()]
         if aqry:
             names = [n for n in names if aqry in n.lower()]
         if not names:
@@ -1469,14 +1323,12 @@ class JShortcutsApp(tk.Tk):
         self._sel_app_scid = None
         apps = load_data().get("apps", {})
         scs  = apps.get(name, {}).get("shortcuts", [])
-        gqry = self._search_v.get().strip().lower()
         sqry = getattr(self, "_app_sc_search_v", tk.StringVar()).get().strip().lower()
-        for qry in (gqry, sqry):
-            if qry:
-                scs = [s for s in scs if
-                       qry in s.get("keys","").lower() or
-                       qry in s.get("description","").lower() or
-                       qry in s.get("notes","").lower()]
+        if sqry:
+            scs = [s for s in scs if
+                   sqry in s.get("keys","").lower() or
+                   sqry in s.get("description","").lower() or
+                   sqry in s.get("notes","").lower()]
         if not scs:
             tk.Label(self._app_sc_sf.inner,
                      text="\n  No shortcuts found.\n  Click '+ Shortcut' to add one.",
@@ -1681,18 +1533,17 @@ class JShortcutsApp(tk.Tk):
         data = load_data()
         apps = data.get("my_apps", [])
 
-        gqry = self._search_v.get().strip().lower()
         mqry = self._ma_search_v.get().strip().lower()
 
         def _matches(a):
             text = (a.get("name","") + a.get("description","")).lower()
-            return (not gqry or gqry in text) and (not mqry or mqry in text)
+            return not mqry or mqry in text
 
         filtered = [(i, a) for i, a in enumerate(apps) if _matches(a)]
 
         if not filtered:
             tk.Label(self._ma_sf.inner,
-                     text="\n  No apps found." if (gqry or mqry) else
+                     text="\n  No apps found." if mqry else
                           "\n  No apps yet.\n  Click '+ App' to add an entry to your app directory.",
                      bg=BG, fg=FG_DIM, font=FN, justify="left"
                      ).pack(padx=24, pady=40)
