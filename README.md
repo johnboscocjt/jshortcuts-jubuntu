@@ -92,13 +92,12 @@ bash install.sh
 
 | Step | What happens |
 |---|---|
-| 1/7 | Checks that Python 3 is installed |
-| 2/7 | Checks that tkinter is available (warns if missing, CLI still works) |
-| 3/7 | Creates `~/bin/` directory |
-| 4/7 | Copies `jshortcuts` and `jshortcuts-gui.py` to `~/bin/` and makes them executable |
-| 5/7 | Creates `~/.jshortcuts.json` with 12 example shortcuts (skipped if it already exists) |
-| 6/7 | Writes `export PATH="$HOME/bin:$PATH"` into `~/.bashrc`, `~/.zshrc`, and `~/.profile` (whichever exist) -- also activates it immediately in the current terminal |
-| 7/7 | Creates a `.desktop` launcher so jshortcuts appears in your Ubuntu app menu |
+| 1/6 | Checks that Python 3 is installed |
+| 2/6 | Checks that tkinter is available (warns if missing, CLI still works) |
+| 3/6 | Creates `~/bin/` directory, copies `jshortcuts` and `jshortcuts-gui.py` to `~/bin/`, and makes them executable |
+| 4/6 | Creates `~/.jshortcuts.json` with 12 example shortcuts (skipped if it already exists) |
+| 5/6 | Writes `export PATH="$HOME/bin:$PATH"` into `~/.bashrc`, `~/.zshrc`, and `~/.profile` (whichever exist) -- also activates it immediately in the current terminal |
+| 6/6 | Creates a `.desktop` launcher so jshortcuts appears in your Ubuntu app menu |
 
 **After the script finishes, jshortcuts is ready immediately in that same terminal:**
 
@@ -227,7 +226,7 @@ jshortcuts [command] [argument]
 | `jshortcuts cat <n>` | Filter shortcuts by category |
 | `jshortcuts search <query>` | Search across keys, description, notes |
 | `jshortcuts open` | Open the data file in your default editor |
-| `jshortcuts github` | Push your shortcuts to a GitHub repository |
+| `jshortcuts github push/pull` | Push your shortcuts to a GitHub repository or pull to force-override local state |
 | `jshortcuts gui` | Launch the GUI popup window |
 | `jshortcuts help` | Show help message |
 
@@ -339,7 +338,7 @@ python3 ~/bin/jshortcuts-gui.py
 # or: search "jshortcuts" in the Ubuntu app menu (Super key)
 ```
 
-### Two tabs
+### Four tabs
 
 **Shortcuts tab** -- your main view with:
 - Category sidebar on the left (click to filter)
@@ -347,7 +346,15 @@ python3 ~/bin/jshortcuts-gui.py
 - + Add / Edit / Delete buttons in the toolbar
 - Real-time search box in the top bar
 - "Open File" button -- opens the JSON in your editor
-- "GitHub" button -- push your shortcuts to GitHub
+- "GitHub" button -- push/pull your shortcuts to/from GitHub
+
+**Apps tab** -- application-specific shortcuts:
+- Sidebar with your configured applications
+- Custom lists of shortcuts scoped specifically to those apps
+
+**All My Apps tab** -- your personal app directory:
+- Keep track of apps you use, their purpose, repo links, and YouTube tutorials
+- Add dynamic custom tags for metadata
 
 **CLI Reference tab** -- a built-in reference showing every jshortcuts command with description and usage notes. No need to open the terminal to look up commands.
 
@@ -371,13 +378,14 @@ You can push your `~/.jshortcuts.json` to a personal GitHub repository so it is 
 ### In the CLI
 
 ```bash
-jshortcuts github
+jshortcuts github push
+jshortcuts github pull
 ```
 
-You will be prompted for your repo URL and a commit message. The tool will:
+You will be prompted for your repo URL and a commit message if pushing. The tool will:
 1. Copy your shortcuts file to `~/.jshortcuts-sync/`
 2. Run `git init` and set the remote (first time only)
-3. Commit and push
+3. Commit and push to GitHub, OR fetch and forcefully `git reset --hard` to overwrite local conflicts when pulling.
 
 ### In the GUI
 

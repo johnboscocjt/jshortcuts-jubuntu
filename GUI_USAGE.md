@@ -49,15 +49,18 @@ After running `install.sh`, search for **jshortcuts** in the Ubuntu app launcher
 
 ## Features
 
-### Category sidebar (left panel)
+### 1. Shortcuts Tab
+
+**Category sidebar (left panel)**
 
 - Lists all unique categories in your data
 - Click **All** to show everything
 - Click any category name to filter the list
 - Currently selected category is highlighted
 - Each category has its own colour, matching the list
+- Fully scrollable with mouse-wheel no matter how long the list gets.
 
-### Shortcut list (right panel)
+**Shortcut list (right panel)**
 
 Each row shows:
 - **ID** (grey chip on the left)
@@ -65,7 +68,7 @@ Each row shows:
 - **Description** (main white text)
 - **Notes** (grey subtext, if present)
 
-### Search box (top right)
+**Search box (top right)**
 
 Type to filter shortcuts in real-time across:
 - Keys
@@ -74,6 +77,19 @@ Type to filter shortcuts in real-time across:
 - Category
 
 The count updates as you type.
+
+### 2. Apps Tab
+- Manage shortcuts grouped completely by application.
+- The sidebar displays your cataloged apps. Clicking anywhere on the application row perfectly selects it.
+- Independent shortcut lists for each application.
+
+### 3. All My Apps Tab
+- Your personal application directory.
+- Document any software you use, a description, its repository, and YouTube tutorials.
+- Create dynamic custom tags and attributes per app to help tracking.
+
+### 4. CLI Reference Tab
+- A fast built-in reference to command-line actions without needing to swap windows.
 
 ---
 
@@ -101,6 +117,12 @@ The edit dialog shows current values pre-filled. Press Enter on any field to kee
 1. Single-click a row to select it (it highlights)
 2. Click **✕ Delete**
 3. Confirm in the prompt
+
+### GitHub Sync
+
+The **GitHub** button located at the top allows you to push or pull changes. 
+- **Pushing** securely uploads your shortcuts to your remote repository.
+- **Pulling** forces your local file to perfectly sync and mirror whatever is on remote. This prevents conflicts and guarantees if you deleted shortcuts remotely, they are correctly removed locally.
 
 ### Scroll
 

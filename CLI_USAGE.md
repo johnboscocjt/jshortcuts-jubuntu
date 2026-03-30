@@ -46,7 +46,7 @@ Displays all shortcuts grouped by category with colour coding:
 
 ────────────────────────────────────────────────────────────────────
   4 shortcut(s)  │  data: /home/user/.jshortcuts.json
-  jshortcuts add | edit <id> | del <id> | gui
+  jshortcuts add | edit <id> | del <id> | open | github | gui
 ```
 
 ---
@@ -166,6 +166,28 @@ jshortcuts search tab
     [  7]  Ctrl + T                      New Tab
     [  8]  Ctrl + Shift + T              Reopen closed Tab
 ```
+
+---
+
+### `jshortcuts open` — Open data file
+
+```bash
+jshortcuts open
+```
+
+Opens `~/.jshortcuts.json` in your default terminal or graphical editor (e.g. VS Code, gedit, nano).
+
+---
+
+### `jshortcuts github <push/pull>` — Sync with GitHub
+
+```bash
+jshortcuts github push
+jshortcuts github pull
+```
+
+- **`push`**: Commits your `~/.jshortcuts.json` and pushes it to your remote GitHub repository.
+- **`pull`**: Performs a `fetch` and a forced `reset --hard` to instantly update your local shortcuts to perfectly match whatever is on GitHub, resolving any conflicts automatically.
 
 ---
 
