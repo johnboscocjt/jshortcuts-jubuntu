@@ -17,7 +17,7 @@ git push origin main
 
 ---
 
-## Complete repository structure
+## Complete repository structure for linux systems
 ```
 jshortcuts-jubuntu/
 ├── README.md                  ← Full docs, table of contents, examples

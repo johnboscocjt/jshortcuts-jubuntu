@@ -45,7 +45,12 @@ CATEGORY_COLORS = [CYAN, YELLOW, GREEN, MAGENTA, BLUE, RED]
 
 def color_support():
     """Return True if the terminal supports ANSI colours."""
-    return sys.stdout.isatty()
+    if not sys.stdout.isatty():
+        return False
+    if sys.platform == "win32":
+        # Enable ANSI escape sequences on Windows 10/11 command lines
+        os.system("")
+    return True
 
 
 def c(text, *codes):
@@ -68,7 +73,11 @@ def load_data():
         else:
             save_data(DEFAULT_DATA)
     with open(DATA_FILE, "r") as f:
-        return json.load(f)
+        data = json.load(f)
+    data.setdefault("shortcuts", [])
+    data.setdefault("apps", {})
+    data.setdefault("my_apps", [])
+    return data
 
 
 def save_data(data):

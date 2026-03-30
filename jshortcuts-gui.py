@@ -78,6 +78,7 @@ def load_data():
             save_data(DEFAULT_DATA)
     with open(DATA_FILE) as f:
         data = json.load(f)
+    data.setdefault("shortcuts", [])
     data.setdefault("apps", {})
     data.setdefault("my_apps", [])
     return data
@@ -417,7 +418,8 @@ class GitHubDialog(tk.Toplevel):
             for branch in ("main", "master"):
                 try:
                     subprocess.check_call(["git", "push", "-u", "origin", branch],
-                                          cwd=sd, env=env)
+                                          cwd=sd, env=env,
+                                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     pushed = True
                     break
                 except subprocess.CalledProcessError:
@@ -433,6 +435,14 @@ class GitHubDialog(tk.Toplevel):
             self.status_lbl.config(fg=DANGER)
 
     def _do_pull(self):
+        ans = messagebox.askyesno("Confirm Pull",
+                                  "WARNING: Data Replacement\n\n"
+                                  "Pulling will entirely OVERWRITE your local shortcuts with the data from GitHub.\n\n"
+                                  "If you have unsaved local changes that you want to keep, please click 'No' and PUSH them first to avoid losing them!\n\n"
+                                  "Are you sure you want to proceed and Pull from GitHub?",
+                                  icon="warning", parent=self)
+        if not ans:
+            return
         if not self._check_git():
             return
         url = self._save_url()
@@ -504,17 +514,24 @@ class GitHubDialog(tk.Toplevel):
 # Open-file dialog
 # =============================================================================
 
-KNOWN_EDITORS = [
-    ("code",     "VS Code"),
-    ("gedit",    "gedit (GNOME)"),
-    ("mousepad", "Mousepad (XFCE)"),
-    ("kate",     "Kate (KDE)"),
-    ("pluma",    "Pluma (MATE)"),
-    ("xed",      "Xed (Cinnamon)"),
-    ("geany",    "Geany"),
-    ("xdg-open", "System default"),
-    ("nano",     "nano (terminal)"),
-]
+if sys.platform == "win32":
+    KNOWN_EDITORS = [
+        ("code",     "VS Code"),
+        ("notepad",  "Notepad"),
+        ("explorer", "System default"),
+    ]
+else:
+    KNOWN_EDITORS = [
+        ("code",     "VS Code"),
+        ("gedit",    "gedit (GNOME)"),
+        ("mousepad", "Mousepad (XFCE)"),
+        ("kate",     "Kate (KDE)"),
+        ("pluma",    "Pluma (MATE)"),
+        ("xed",      "Xed (Cinnamon)"),
+        ("geany",    "Geany"),
+        ("xdg-open", "System default"),
+        ("nano",     "nano (terminal)"),
+    ]
 
 
 class OpenFileDialog(tk.Toplevel):
@@ -899,6 +916,10 @@ class JShortcutsApp(tk.Tk):
         self._tab_cli = tk.Frame(self._nb, bg=BG)
         self._nb.add(self._tab_cli, text="  CLI Reference  ")
         self._build_cli_tab()
+
+        self._tab_git = tk.Frame(self._nb, bg=BG)
+        self._nb.add(self._tab_git, text="  Git Info  ")
+        self._build_git_tab()
 
     # =========================================================================
     # TAB 1: Shortcuts
@@ -1762,6 +1783,56 @@ class JShortcutsApp(tk.Tk):
         sf.bind_scroll_recursive(inn)
 
     # =========================================================================
+    # TAB 5: Git Info
+    # =========================================================================
+
+    def _build_git_tab(self):
+        sf = self._reg_sf(ScrollFrame(self._tab_git, bg=BG))
+        sf.pack(fill="both", expand=True)
+        inn = sf.inner
+
+        tk.Label(inn, text="How GitHub Synchronization Works", bg=BG, fg=FG, 
+                 font=("JetBrains Mono", 14, "bold"), anchor="w").pack(fill="x", padx=20, pady=(20, 10))
+
+        info_text = (
+            "This app acts as a visual interface for managing your shortcuts, but it\n"
+            "relies on GitHub to safely store and distribute them across computers.\n"
+            "Here is how different actions work to keep your shortcuts safe:\n\n"
+            
+            "1. SETTING UP \n"
+            "   When you set your GitHub repository URL and Personal Access Token (PAT),\n"
+            "   the app creates a hidden clone in `~/.jshortcuts-sync`. This directory\n"
+            "   is strictly for tracking changes and communicating with GitHub.\n\n"
+            
+            "2. PUSH (Uploading your local changes)\n"
+            "   When you click Push, the app copies your current `~/.jshortcuts.json`\n"
+            "   file into the hidden sync folder and commits it to your GitHub repository.\n"
+            "   • Use this whenever you add, edit, or delete shortcuts.\n"
+            "   • If your remote repository is 'ahead' (someone else added shortcuts),\n"
+            "     you must PULL first before you can PUSH, otherwise pushing will fail.\n\n"
+            
+            "3. PULL (Downloading remote changes)\n"
+            "   When you click Pull, the app downloads `jshortcuts.json` from GitHub\n"
+            "   and completely OVERWRITES your local file.\n"
+            "   • This is considered a 'hard overwrite'. It forcefully matches your local\n"
+            "     shortcuts to whatever is currently stored on GitHub.\n"
+            "   • DANGER: If you created new shortcuts locally and then Pull without\n"
+            "     Pushing first, those un-pushed local changes will be lost!\n\n"
+            
+            "4. RESOLVING CONFLICTS\n"
+            "   This app intentionally avoids complex Git merge conflicts. The rule\n"
+            "   is simple: The last Push wins. If you end up overwriting someone's\n"
+            "   changes (or your own past changes), you can always recover them directly\n"
+            "   from the commit history interface natively available in your GitHub\n"
+            "   repository on the web browser."
+        )
+
+        txt = tk.Text(inn, bg=BG, fg=FG_DIM, font=FN, relief="flat", wrap="word", height=28, width=80)
+        txt.pack(side="left", fill="both", expand=True, padx=20, pady=10)
+        txt.insert("1.0", info_text)
+        txt.config(state="disabled")
+
+    # =========================================================================
     # Helpers: open file, GitHub, URL
     # =========================================================================
 
@@ -1777,7 +1848,9 @@ class JShortcutsApp(tk.Tk):
             self._refresh_all()
 
     def _open_url(self, url):
-        if shutil.which("xdg-open"):
+        if sys.platform == "win32":
+            os.startfile(url)
+        elif shutil.which("xdg-open"):
             subprocess.Popen(["xdg-open", url],
                              stdout=subprocess.DEVNULL,
                              stderr=subprocess.DEVNULL,

@@ -4,15 +4,20 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8%2B-blue)](https://python.org)
-[![Platform: Ubuntu](https://img.shields.io/badge/platform-Ubuntu-orange)](https://ubuntu.com)
+[![Platform: Ubuntu & Windows](https://img.shields.io/badge/platform-Ubuntu%20%7C%20Windows-orange)]()
 [![Made by: Jbtechnix](https://img.shields.io/badge/by-Jbtechnix-purple)](https://github.com/johnboscocjt)
 
 ---
 
-**jshortcuts** is a lightweight personal shortcut-reference tool.
-It is **not** connected to Ubuntu's system configuration — it is your own editable cheatsheet where you record, browse, and update keyboard shortcuts and workflow notes.
+## The Story Behind jshortcuts
 
-Both the **GUI window** and the **CLI tool** share the same `~/.jshortcuts.json` file and always show identical data.
+For years, I found myself constantly bouncing between operating systems, IDEs, and countless new applications—each demanding I memorize a completely different set of keyboard shortcuts. I would spend hours configuring the perfect workflow, only to switch computers or reinstall my OS and completely forget what `Ctrl + Shift + K` actually did. I tried using sticky notes, plain text files, and generic notes apps, but it was always tedious to search through them or keep them synchronized across my Linux desktop and Windows machines. The pain point was obvious: I needed a lightning-fast, globally synchronized cheat sheet explicitly designed around hotkeys.
+
+**jshortcuts** was built to solve exactly that. 
+
+It is a seamlessly cross-platform personal shortcut-reference tool that gives you a dark-mode GUI popup **and** a colourful terminal CLI tool, both perfectly synced to the same local JSON file. It is **not** connected to your operating system's configuration — it is your own purely editable cheat sheet. It allows you to record, browse, and update keyboard macros, categorize them by Application contexts, and then immediately push or pull those shortcuts natively via GitHub to synchronize all your computers together.
+
+If you are running Windows, please see [WINDOWS_USAGE.md](WINDOWS_USAGE.md) for custom installation notes!
 
 ---
 
@@ -52,6 +57,52 @@ Both the **GUI window** and the **CLI tool** share the same `~/.jshortcuts.json`
 | CLI commands reference page | -- | Yes |
 | Desktop app launcher | -- | Yes |
 | Ctrl+C closes GUI from terminal | -- | Yes |
+
+---
+
+## Screenshots & Interface
+
+Here is a visual overview of everything you can do inside the `jshortcuts` GUI!
+
+### 1. All Shortcuts & Global View
+![All Shortcuts](appscreenshots/1.AllShortcuts.png)
+**What you can do here:** 
+- View every single shortcut you have saved across all categories.
+- Quickly search for specific hotkeys using the search bar at the top of the tab.
+- Click `+ Add` to instantly create a new custom shortcut inside any category, or click the edit icon on existing rows to modify them.
+- Jump to a specific category (e.g., *development*, *browser*) using the left sidebar.
+
+### 2. Category Filtering
+![Category Filtering](appscreenshots/2.category.png)
+**What you can do here:**
+- See a focused list of shortcuts for just one specific workflow context.
+- Keep your mind clear when dealing with massive shortcut databases by isolating exactly what you are currently working on.
+
+### 3. Application Profiles Breakdown
+![Apps Page](appscreenshots/3.Appspage.png)
+**What you can do here:**
+- Register entirely separate "App Profiles" (like *VS Code*, *Blender*, or *Firefox*).
+- Define dedicated shortcuts that are ONLY relevant when you have that specific Application open.
+- Keep application-specific keyboard macros completely separated from your global developer cheat-sheets.
+
+### 4. Consolidated My Apps Screen
+![All My Apps](appscreenshots/4.AllMyApps.png)
+**What you can do here:** 
+- A high-level overview displaying all known Application profiles you've configured.
+- Quickly click on an app to drill-down into its unique hotkeys, or create new Application targets.
+
+### 5. CLI Command Reference
+![CLI Reference](appscreenshots/5.CLIreference.png)
+**What you can do here:**
+- If you prefer the terminal, this tab teaches you every terminal command `jshortcuts` supports.
+- Learn how to search, filter, and push shortcuts to GitHub natively from bash or cmd without ever leaving your IDE shell!
+
+### 6. Built-in GitHub Synchronization
+![GitHub Synchronization](appscreenshots/6.githubsynchronization.png)
+**What you can do here:**
+- Connect your local shortcuts safely to a private repository in the cloud.
+- **Push**: Backup all your latest shortcut definitions to GitHub with a single click.
+- **Pull**: Synchronize your shortcuts down to a new laptop/desktop instantly so your habits carry over anywhere.
 
 ---
 
